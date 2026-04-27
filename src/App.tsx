@@ -10,7 +10,7 @@ import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy
 import { startOfWeek, addDays, format, parseISO } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { Wifi, WifiOff, CloudDownload } from 'lucide-react';
+import { WifiOff, CloudDownload } from 'lucide-react';
 
 const DEFAULT_METADATA: WeeklyMetadata = {
   homeTerminalAddress: '',
@@ -78,7 +78,7 @@ export default function App() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
+    onRegistered() {
       console.log('SW Registered');
     },
     onRegisterError(error) {
