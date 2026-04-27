@@ -1,0 +1,59 @@
+
+export const translations = {
+  en: {
+    dashboard: 'SynOdos Log | Hours of Service',
+    newWeek: 'New Week',
+    noLogs: 'No saved logs found. Create a new one to get started.',
+    edit: 'Edit',
+    save: 'Save',
+    saved: 'Saved',
+    exportPdf: 'Export PDF',
+    remarks: 'Remarks',
+    startOdo: 'Start Odometer',
+    endOdo: 'End Odometer',
+    savePreset: 'Save Preset',
+    applyPreset: 'Apply Preset',
+    finishDay: 'Finish Day',
+    locked: 'Locked',
+    showTimestamps: 'Show Timestamps in Cells',
+  },
+  fr: {
+    dashboard: 'SynOdos Log | Heures de Service',
+    newWeek: 'Nouvelle Semaine',
+    noLogs: 'Aucun journal enregistré. Créez-en un pour commencer.',
+    edit: 'Modifier',
+    save: 'Sauvegarder',
+    saved: 'Sauvegardé',
+    exportPdf: 'Exporter PDF',
+    remarks: 'Remarques',
+    startOdo: 'Odomètre (Début)',
+    endOdo: 'Odomètre (Fin)',
+    savePreset: 'Sauvegarder Préréglage',
+    applyPreset: 'Appliquer Préréglage',
+    finishDay: 'Terminer la Journée',
+    locked: 'Verrouillé',
+    showTimestamps: 'Afficher les heures dans les cases',
+  },
+  el: {
+    dashboard: 'SynOdos Log | Ώρες εργασίας',
+    newWeek: 'Νέα Εβδομάδα',
+    noLogs: 'Δεν βρέθηκαν αποθηκευμένα ημερολόγια. Δημιουργήστε ένα για να ξεκινήσετε.',
+    edit: 'Επεξεργασία',
+    save: 'Αποθήκευση',
+    saved: 'Αποθηκευμένα',
+    exportPdf: 'Εξαγωγή PDF',
+    remarks: 'Σχόλια',
+    startOdo: 'Odometer (Start)',
+    endOdo: 'Odometer (End)',
+    savePreset: 'Αποθήκευση Πρότυπου',
+    applyPreset: 'Εφαρμογή Πρότυπου',
+    finishDay: 'Τερματισμός Ημέρας',
+    locked: 'Κλειδωμένο',
+    showTimestamps: 'Εμφάνιση Ώρας στα Κελιά',
+  }
+};
+
+export const t = (key: keyof typeof translations.en, lang: string) => {
+  const language = translations[lang as keyof typeof translations] || translations.en;
+  return language[key] || translations.en[key];
+};
