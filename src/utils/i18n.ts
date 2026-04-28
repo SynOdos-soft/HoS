@@ -16,6 +16,9 @@ export const translations = {
     finishDay: 'Finish Day',
     locked: 'Locked',
     showTimestamps: 'Show Timestamps in Cells',
+    sameVehicle: 'Same Vehicle',
+    cmvPlate: 'CMV Plate',
+    totalDistance: 'Total Distance',
   },
   fr: {
     dashboard: 'SynOdos Log | Heures de Service',
@@ -33,6 +36,9 @@ export const translations = {
     finishDay: 'Terminer la Journée',
     locked: 'Verrouillé',
     showTimestamps: 'Afficher les heures dans les cases',
+    sameVehicle: 'Même Véhicule',
+    cmvPlate: 'Plaque CMV',
+    totalDistance: 'Distance Totale',
   },
   el: {
     dashboard: 'SynOdos Log | Ώρες εργασίας',
@@ -50,6 +56,9 @@ export const translations = {
     finishDay: 'Τερματισμός Ημέρας',
     locked: 'Κλειδωμένο',
     showTimestamps: 'Εμφάνιση Ώρας στα Κελιά',
+    sameVehicle: 'Ίδιο Όχημα',
+    cmvPlate: 'Πινακίδα CMV',
+    totalDistance: 'Συνολική Απόσταση',
   }
 };
 

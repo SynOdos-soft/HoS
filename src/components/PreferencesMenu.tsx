@@ -99,9 +99,45 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
           </label>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={preferences.showSameVehicle} onChange={() => toggleBoolean('showSameVehicle')} />
+            Show Same Vehicle Checkbox
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
             <input type="checkbox" checked={preferences.showTimestamps} onChange={() => toggleBoolean('showTimestamps')} />
             {t('showTimestamps', preferences.language) || 'Show Timestamps in Cells'}
           </label>
+
+          <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
+          <h3 style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Default Log Details</h3>
+
+          <div className="input-group">
+            <label>Default Cycle</label>
+            <select value={preferences.defaultCycle || '7-Day'} onChange={(e) => setString('defaultCycle', e.target.value)}>
+              <option value="7-Day">7-Day</option>
+              <option value="14-Day">14-Day</option>
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Driver's Name</label>
+            <input type="text" value={preferences.defaultDriverName || ''} onChange={(e) => setString('defaultDriverName', e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Operator Name</label>
+            <input type="text" value={preferences.defaultOperatorName || ''} onChange={(e) => setString('defaultOperatorName', e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Operator Business Address</label>
+            <input type="text" value={preferences.defaultOperatorBusinessAddress || ''} onChange={(e) => setString('defaultOperatorBusinessAddress', e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Home Terminal Address</label>
+            <input type="text" value={preferences.defaultHomeTerminalAddress || ''} onChange={(e) => setString('defaultHomeTerminalAddress', e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>CMV Plate</label>
+            <input type="text" value={preferences.defaultCmvPlate || ''} onChange={(e) => setString('defaultCmvPlate', e.target.value)} />
+          </div>
 
           <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
           <h3 style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>System</h3>

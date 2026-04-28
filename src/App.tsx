@@ -7,7 +7,7 @@ import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
 import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy } from 'lucide-react';
-import { startOfWeek, addDays, format, parseISO } from 'date-fns';
+import { startOfWeek, addDays, format, parseISO, getISOWeek, getWeek } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { WifiOff, CloudDownload } from 'lucide-react';
@@ -37,7 +37,9 @@ const createEmptyDays = (startDate: Date): DayEntry[] => {
       remarks: '',
       startOdometer: '',
       endOdometer: '',
-      locked: false
+      locked: false,
+      sameVehicle: true,
+      cmvPlate: ''
     };
   });
 };
@@ -138,12 +140,27 @@ export default function App() {
 
   const startNewWeek = (targetDate: Date) => {
     const monday = startOfWeek(targetDate, { weekStartsOn: 1 });
+    const sunday = addDays(monday, 6);
     const id = format(monday, 'yyyy-MM-dd');
     setCurrentId(id);
+    
+    let monthStr = format(monday, 'MMMM');
+    const sundayMonthStr = format(sunday, 'MMMM');
+    if (monthStr !== sundayMonthStr) {
+      monthStr = `${monthStr} - ${sundayMonthStr}`;
+    }
+
     setMetadata({
       ...DEFAULT_METADATA,
-      month: format(monday, 'MMMM'),
+      month: monthStr,
       year: format(monday, 'yyyy'),
+      weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(),
+      cycle: preferences.defaultCycle || '7-Day',
+      driverName: preferences.defaultDriverName || '',
+      operatorName: preferences.defaultOperatorName || '',
+      operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '',
+      homeTerminalAddress: preferences.defaultHomeTerminalAddress || '',
+      cmvPlate: preferences.defaultCmvPlate || '',
     });
     setDays(createEmptyDays(monday));
     setSelectedDayIndex(0);
@@ -207,10 +224,27 @@ export default function App() {
     });
   };
 
-  const updateSelectedDayField = (idx: number, field: 'remarks' | 'startOdometer' | 'endOdometer', value: string) => {
+  const updateSelectedDayField = (idx: number, field: 'remarks' | 'startOdometer' | 'endOdometer' | 'sameVehicle' | 'cmvPlate', value: any) => {
     setDays((prev) => {
       const updated = [...prev];
-      updated[idx][field] = value;
+      updated[idx] = { ...updated[idx], [field]: value };
+      
+      // Auto-populate next day's start odometer if end odometer is changed and next day has "same vehicle" checked
+      if (field === 'endOdometer' && idx < 6) {
+        const nextDay = updated[idx + 1];
+        if (nextDay.sameVehicle !== false && !nextDay.locked) {
+          updated[idx + 1] = { ...nextDay, startOdometer: value };
+        }
+      }
+      
+      // Auto-populate current day's start odometer if "same vehicle" is checked and previous day has an end odometer
+      if (field === 'sameVehicle' && value === true && idx > 0) {
+        const prevDay = updated[idx - 1];
+        if (prevDay.endOdometer) {
+          updated[idx] = { ...updated[idx], startOdometer: prevDay.endOdometer };
+        }
+      }
+      
       return updated;
     });
   };
@@ -303,7 +337,36 @@ export default function App() {
                   disabled={day.locked}
                 />
               </div>
-              <div style={{ minWidth: '120px', width: '45%', display: 'flex', flexDirection: 'column', gap: '0.5rem', margin: "auto" }}>
+
+              {preferences.showSameVehicle && (
+                <div style={{ flex: 1, minWidth: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={day.sameVehicle !== false}
+                      onChange={(e) => updateSelectedDayField(idx, 'sameVehicle', e.target.checked)}
+                      disabled={day.locked}
+                    />
+                    {t('sameVehicle', preferences.language)}
+                  </label>
+                  {day.sameVehicle === false && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t('cmvPlate', preferences.language)}</label>
+                      <input
+                        type="text"
+                        className="input-group"
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                        value={day.cmvPlate || ''}
+                        onChange={(e) => updateSelectedDayField(idx, 'cmvPlate', e.target.value)}
+                        placeholder="..."
+                        disabled={day.locked}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t('startOdo', preferences.language)}</label>
                 <input
                   type="number"
@@ -319,7 +382,7 @@ export default function App() {
                   disabled={day.locked}
                 />
               </div>
-              <div style={{ minWidth: '120px', width: '45%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t('endOdo', preferences.language)}</label>
                 <input
                   type="number"
@@ -345,7 +408,7 @@ export default function App() {
               locked={day.locked}
             />
             <div style={{ marginTop: '1rem' }}>
-              <Totals grid={day.grid} preferences={preferences} />
+              <Totals grid={day.grid} preferences={preferences} startOdometer={day.startOdometer} endOdometer={day.endOdometer} />
             </div>
           </div>
         )}
@@ -418,7 +481,15 @@ export default function App() {
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <input
                   type="date"
-                  onChange={(e) => e.target.value && startNewWeek(new Date(e.target.value))}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      // e.target.value is in YYYY-MM-DD format
+                      // Parse it manually to avoid timezone issues
+                      const [year, month, day] = e.target.value.split('-').map(Number);
+                      startNewWeek(new Date(year, month - 1, day));
+                      e.target.value = ''; // Reset so the same date can be selected again
+                    }
+                  }}
                   style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
                 />
                 <button className="btn-primary" style={{ pointerEvents: 'none' }}>

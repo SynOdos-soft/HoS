@@ -228,8 +228,9 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
     const cycleInfo = `Cycle: ${cycleNum}`;
     const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}`;
     const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
+    const cmvPlateInfo = preferences.showSameVehicle && day.sameVehicle === false && day.cmvPlate ? ` | CMV Plate: ${day.cmvPlate}` : '';
 
-    doc.text(`${cycleInfo} | ${odoInfo}${userRemarks}`, margin + 1, y + 6);
+    doc.text(`${cycleInfo} | ${odoInfo}${userRemarks}${cmvPlateInfo}`, margin + 1, y + 6);
     y += 9;
   });
 

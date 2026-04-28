@@ -23,6 +23,8 @@ export interface DayEntry {
   startOdometer: string;
   endOdometer: string;
   locked?: boolean;
+  sameVehicle?: boolean;
+  cmvPlate?: string;
 }
 
 export interface WeeklyLog {
@@ -44,17 +46,31 @@ export interface Preferences {
   autoSave: boolean;
   language: string;
   showTimestamps: boolean;
+  showSameVehicle: boolean;
+  defaultCycle: '7-Day' | '14-Day';
+  defaultDriverName: string;
+  defaultOperatorName: string;
+  defaultOperatorBusinessAddress: string;
+  defaultHomeTerminalAddress: string;
+  defaultCmvPlate: string;
 }
 
 export const DEFAULT_PREFS: Preferences = {
   timeFormat: '24h',
   theme: 'dark',
-  showCoDrivers: true,
-  showTrailerPlate: true,
-  showExempt: true,
-  showSleeper: true,
+  showCoDrivers: false,
+  showTrailerPlate: false,
+  showExempt: false,
+  showSleeper: false,
   viewMode: 'tabs',
   autoSave: true,
   language: 'en',
   showTimestamps: true,
+  showSameVehicle: true,
+  defaultCycle: '7-Day',
+  defaultDriverName: '',
+  defaultOperatorName: '',
+  defaultOperatorBusinessAddress: '',
+  defaultHomeTerminalAddress: '',
+  defaultCmvPlate: '',
 };
