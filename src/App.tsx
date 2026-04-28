@@ -7,7 +7,7 @@ import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
 import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy } from 'lucide-react';
-import { startOfWeek, addDays, format, parseISO, getISOWeek, getWeek } from 'date-fns';
+import { startOfWeek, addDays, format, parseISO, getWeek } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { WifiOff, CloudDownload } from 'lucide-react';
