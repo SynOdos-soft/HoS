@@ -224,9 +224,12 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
 
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
+    const startOdo = parseFloat(day.startOdometer || '0');
+    const endOdo = parseFloat(day.endOdometer || '0');
+    const totalKm = (!isNaN(startOdo) && !isNaN(endOdo) && endOdo > startOdo) ? (endOdo - startOdo).toFixed(1).replace(/\.0$/, '') : '0';
     const cycleNum = md.cycle === '7-Day' ? '1' : '2';
     const cycleInfo = `Cycle: ${cycleNum}`;
-    const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}`;
+    const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}, Total: ${totalKm} km`;
     const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
     const cmvPlateInfo = preferences.showSameVehicle && day.sameVehicle === false && day.cmvPlate ? ` | CMV Plate: ${day.cmvPlate}` : '';
 

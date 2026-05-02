@@ -74,7 +74,7 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked }
             <div 
               key={h} 
               className="grid-hour-header" 
-              onPointerDown={() => handleHourClick(h)}
+              onClick={() => handleHourClick(h)}
               style={{ cursor: locked ? 'not-allowed' : 'pointer' }}
             >
               <span className="hour-text">
@@ -99,7 +99,7 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked }
                     <div
                       key={index}
                       className={`quarter-cell ${isActive ? `active-${status}` : ''}`}
-                      onPointerDown={(e) => { e.preventDefault(); handlePointerDown(index, status); }}
+                      onClick={(e) => { e.preventDefault(); handlePointerDown(index, status); }}
                       style={{ cursor: locked ? 'not-allowed' : 'pointer', touchAction: 'manipulation' }}
                     >
                       {preferences.showTimestamps && isActive && (
