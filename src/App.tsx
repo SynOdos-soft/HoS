@@ -205,6 +205,10 @@ export default function App() {
     generatePDF(log, preferences);
   };
 
+  const handleExportDashboardPDF = (log: WeeklyLog) => {
+    generatePDF(log, preferences);
+  };
+
   // Auto-save debounced effect
   useEffect(() => {
     if (preferences.autoSave && view === 'editor' && currentId) {
@@ -507,8 +511,18 @@ export default function App() {
             ) : (
               savedLogs.map(log => (
                 <div key={log.id} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h3>Week of {log.id}</h3>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <h3 style={{ margin: 0 }}>Week of {log.id}</h3>
+                    <button 
+                      className="tool-btn" 
+                      style={{ padding: '0.5rem', color: 'var(--accent-green)', margin: '-0.5rem -0.5rem 0 0' }} 
+                      onClick={() => handleExportDashboardPDF(log)}
+                      title={t('exportPdf', preferences.language)}
+                    >
+                      <Download size={18} />
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '-0.5rem' }}>
                     Driver: {log.metadata.driverName || 'N/A'}<br />
                     Cycle: {log.metadata.cycle}
                   </p>

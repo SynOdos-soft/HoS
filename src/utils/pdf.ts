@@ -258,5 +258,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
   doc.setLineDashPattern([], 0);
 
 
-  doc.save(`hos-log-${log.id}.pdf`);
+  const safeDriverName = (md.driverName || 'driver').replace(/\s+/g, '_');
+  const safeWeekNum = md.weekNumber || 'week';
+  doc.save(`synodos_${safeDriverName}_${safeWeekNum}.pdf`);
 };

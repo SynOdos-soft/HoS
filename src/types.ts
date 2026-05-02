@@ -57,7 +57,7 @@ export interface Preferences {
 
 export const DEFAULT_PREFS: Preferences = {
   timeFormat: '24h',
-  theme: 'dark',
+  theme: 'light',
   showCoDrivers: false,
   showTrailerPlate: false,
   showExempt: false,
