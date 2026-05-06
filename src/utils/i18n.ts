@@ -7,7 +7,7 @@ export const translations = {
     edit: 'Edit',
     save: 'Save',
     saved: 'Saved',
-    exportPdf: 'Export PDF',
+    exportPdf: 'PDF',
     remarks: 'Remarks',
     startOdo: 'Start Odometer',
     endOdo: 'End Odometer',

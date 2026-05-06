@@ -6,9 +6,10 @@ interface GridProps {
   setGrid: React.Dispatch<React.SetStateAction<Status[]>>;
   preferences: Preferences;
   locked?: boolean;
+  highlightHour?: number;
 }
 
-export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked }) => {
+export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked, highlightHour = -1 }) => {
   const STATUS_OPTIONS: Status[] = preferences.showSleeper 
     ? ['off-duty', 'sleeper', 'driving', 'on-duty']
     : ['off-duty', 'driving', 'on-duty'];
@@ -71,9 +72,9 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked }
             TIME
           </div>
           {Array.from({ length: 24 }).map((_, h) => (
-            <div 
-              key={h} 
-              className="grid-hour-header" 
+            <div
+              key={h}
+              className={`grid-hour-header ${h === highlightHour ? 'hour-highlight' : ''}`}
               onClick={() => handleHourClick(h)}
               style={{ cursor: locked ? 'not-allowed' : 'pointer' }}
             >
@@ -91,7 +92,7 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked }
               {status.toUpperCase().replace('-', ' ')}
             </div>
             {Array.from({ length: 24 }).map((_, h) => (
-              <div key={`${status}-${h}`} className="hour-block">
+              <div key={`${status}-${h}`} className={`hour-block ${h === highlightHour ? 'hour-highlight' : ''}`}>
                 {Array.from({ length: 4 }).map((_, q) => {
                   const index = h * 4 + q;
                   const isActive = grid[index] === status;

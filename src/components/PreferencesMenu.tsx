@@ -58,11 +58,11 @@ const VERSIONS = [
   }
 ];
 
-export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({ 
-  preferences, setPreferences, isOpen, onClose, 
-  installPrompt, isStandalone, onInstall 
+export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
+  preferences, setPreferences, isOpen, onClose,
+  installPrompt, isStandalone, onInstall
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'trucking' | 'defaults' | 'install' | 'version'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'trucking' | 'install' | 'version'>('general');
 
   if (!isOpen) return null;
 
@@ -76,8 +76,8 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
   const tabs = [
     { id: 'general', label: 'General', icon: Settings },
-    { id: 'trucking', label: 'Trucking', icon: Truck },
     { id: 'defaults', label: 'Defaults', icon: FileText },
+    { id: 'trucking', label: 'Trucking', icon: Truck },
     ...(!isStandalone ? [{ id: 'install', label: 'Install', icon: Download }] : []),
     { id: 'version', label: 'Version', icon: Info },
   ] as const;
@@ -86,9 +86,9 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
     <div className="modal-overlay">
       <div className="glass-panel modal-container">
         {/* Modal Header */}
-        <div style={{ 
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-          padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' 
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '1.5rem', borderBottom: '1px solid var(--glass-border)'
         }}>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Settings size={24} /> Preferences</h2>
           <button className="tool-btn" onClick={onClose} style={{ padding: '0.5rem', margin: 0 }}><X size={24} /></button>
@@ -102,7 +102,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
-                <button 
+                <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`tab-btn ${isActive ? 'active' : ''}`}
@@ -148,9 +148,9 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                     <option value="stacked">Stacked Days</option>
                   </select>
                 </div>
-                
+
                 <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
-                
+
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.autoSave} onChange={() => toggleBoolean('autoSave')} />
                   Enable Auto-Save
@@ -163,33 +163,6 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                   <input type="checkbox" checked={preferences.showTimestamps} onChange={() => toggleBoolean('showTimestamps')} />
                   {t('showTimestamps', preferences.language) || 'Show Timestamps in Cells'}
                 </label>
-              </div>
-            )}
-
-            {activeTab === 'trucking' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Trucking Features</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '-0.75rem' }}>
-                  Toggle visibility for specific HOS fields and features on the dashboard.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showCoDrivers} onChange={() => toggleBoolean('showCoDrivers')} />
-                    Show Co-Driver(s)
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showTrailerPlate} onChange={() => toggleBoolean('showTrailerPlate')} />
-                    Show Trailer Plate
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showExempt} onChange={() => toggleBoolean('showExempt')} />
-                    Show Exempt Hrs
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showSleeper} onChange={() => toggleBoolean('showSleeper')} />
-                    Show Sleeper Row
-                  </label>
-                </div>
               </div>
             )}
 
@@ -226,6 +199,33 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
               </div>
             )}
 
+            {activeTab === 'trucking' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Trucking Features</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '-0.75rem' }}>
+                  Toggle visibility for specific HOS fields and features on the dashboard.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={preferences.showCoDrivers} onChange={() => toggleBoolean('showCoDrivers')} />
+                    Show Co-Driver(s)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={preferences.showTrailerPlate} onChange={() => toggleBoolean('showTrailerPlate')} />
+                    Show Trailer Plate
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={preferences.showExempt} onChange={() => toggleBoolean('showExempt')} />
+                    Show Exempt Hrs
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={preferences.showSleeper} onChange={() => toggleBoolean('showSleeper')} />
+                    Show Sleeper Row
+                  </label>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'install' && !isStandalone && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Installation</h3>
@@ -253,15 +253,15 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                 <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Version History</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {VERSIONS.map((v, i) => (
-                    <div key={i} style={{ 
-                      background: 'var(--bg-secondary)', padding: '1rem', 
-                      borderRadius: '8px', border: '1px solid var(--border-color)' 
+                    <div key={i} style={{
+                      background: 'var(--bg-secondary)', padding: '1rem',
+                      borderRadius: '8px', border: '1px solid var(--border-color)'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                         <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>v{v.version}</h4>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{v.date}</span>
                       </div>
-                      
+
                       {v.features.length > 0 && (
                         <div style={{ marginBottom: '0.5rem' }}>
                           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-green)', textTransform: 'uppercase' }}>Features</span>
@@ -270,7 +270,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                           </ul>
                         </div>
                       )}
-                      
+
                       {v.fixes.length > 0 && (
                         <div>
                           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>Fixes</span>

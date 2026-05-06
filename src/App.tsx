@@ -7,7 +7,7 @@ import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
 import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy } from 'lucide-react';
-import { startOfWeek, addDays, format, parseISO, getWeek } from 'date-fns';
+import { startOfWeek, addDays, format, parseISO, getWeek, isToday } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { WifiOff, CloudDownload } from 'lucide-react';
@@ -61,6 +61,7 @@ export default function App() {
   const [days, setDays] = useState<DayEntry[]>([]);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
+  const [autoLoaded, setAutoLoaded] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -132,6 +133,38 @@ export default function App() {
     }
   }, [view]);
 
+  // Auto-load current week on first mount
+  useEffect(() => {
+    if (!autoLoaded) {
+      setAutoLoaded(true);
+      autoLoadCurrentWeek();
+    }
+  }, []);
+
+  const autoLoadCurrentWeek = async () => {
+    const today = new Date();
+    const monday = startOfWeek(today, { weekStartsOn: 1 });
+    const weekId = format(monday, 'yyyy-MM-dd');
+    const existingLog = await getLog(weekId);
+
+    if (existingLog) {
+      setCurrentId(existingLog.id);
+      setMetadata(existingLog.metadata);
+      setDays(existingLog.days);
+      // Find today's index
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const todayIdx = existingLog.days.findIndex(d => d.date === todayStr);
+      setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
+      // Collapse all days except today
+      const collapsed = new Set(existingLog.days.map(d => d.date).filter(d => d !== todayStr));
+      setCollapsedDays(collapsed);
+      setView('editor');
+    } else {
+      // Create new week for current week
+      startNewWeekWithToday(today);
+    }
+  };
+
   const loadDashboard = async () => {
     const logs = await getAllLogs();
     logs.sort((a, b) => b.id.localeCompare(a.id));
@@ -143,7 +176,7 @@ export default function App() {
     const sunday = addDays(monday, 6);
     const id = format(monday, 'yyyy-MM-dd');
     setCurrentId(id);
-    
+
     let monthStr = format(monday, 'MMMM');
     const sundayMonthStr = format(sunday, 'MMMM');
     if (monthStr !== sundayMonthStr) {
@@ -162,8 +195,46 @@ export default function App() {
       homeTerminalAddress: preferences.defaultHomeTerminalAddress || '',
       cmvPlate: preferences.defaultCmvPlate || '',
     });
-    setDays(createEmptyDays(monday));
+    const newDays = createEmptyDays(monday);
+    setDays(newDays);
     setSelectedDayIndex(0);
+    setCollapsedDays(new Set());
+    setView('editor');
+  };
+
+  const startNewWeekWithToday = (today: Date) => {
+    const monday = startOfWeek(today, { weekStartsOn: 1 });
+    const sunday = addDays(monday, 6);
+    const id = format(monday, 'yyyy-MM-dd');
+    setCurrentId(id);
+
+    let monthStr = format(monday, 'MMMM');
+    const sundayMonthStr = format(sunday, 'MMMM');
+    if (monthStr !== sundayMonthStr) {
+      monthStr = `${monthStr} - ${sundayMonthStr}`;
+    }
+
+    setMetadata({
+      ...DEFAULT_METADATA,
+      month: monthStr,
+      year: format(monday, 'yyyy'),
+      weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(),
+      cycle: preferences.defaultCycle || '7-Day',
+      driverName: preferences.defaultDriverName || '',
+      operatorName: preferences.defaultOperatorName || '',
+      operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '',
+      homeTerminalAddress: preferences.defaultHomeTerminalAddress || '',
+      cmvPlate: preferences.defaultCmvPlate || '',
+    });
+    const newDays = createEmptyDays(monday);
+    setDays(newDays);
+
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const todayIdx = newDays.findIndex(d => d.date === todayStr);
+    setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
+    // Collapse all days except today
+    const collapsed = new Set(newDays.map(d => d.date).filter(d => d !== todayStr));
+    setCollapsedDays(collapsed);
     setView('editor');
   };
 
@@ -232,7 +303,7 @@ export default function App() {
     setDays((prev) => {
       const updated = [...prev];
       updated[idx] = { ...updated[idx], [field]: value };
-      
+
       // Auto-populate next day's start odometer if end odometer is changed and next day has "same vehicle" checked
       if (field === 'endOdometer' && idx < 6) {
         const nextDay = updated[idx + 1];
@@ -240,7 +311,7 @@ export default function App() {
           updated[idx + 1] = { ...nextDay, startOdometer: value };
         }
       }
-      
+
       // Auto-populate current day's start odometer if "same vehicle" is checked and previous day has an end odometer
       if (field === 'sameVehicle' && value === true && idx > 0) {
         const prevDay = updated[idx - 1];
@@ -248,7 +319,7 @@ export default function App() {
           updated[idx] = { ...updated[idx], startOdometer: prevDay.endOdometer };
         }
       }
-      
+
       return updated;
     });
   };
@@ -289,8 +360,28 @@ export default function App() {
 
   const renderDayPanel = (day: DayEntry, idx: number) => {
     const isCollapsed = collapsedDays.has(day.date);
+    const dayIsToday = isToday(parseISO(day.date));
+    const currentHour = dayIsToday ? new Date().getHours() : -1;
+
+    // Calculate summary data for collapsed view
+    const counts = day.grid.reduce((acc, status) => {
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<Status, number>);
+    const fmtH = (quarters: number) => {
+      const hours = Math.floor(quarters / 4);
+      const mins = (quarters % 4) * 15;
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    };
+    const totalKm = (() => {
+      const s = Number(day.startOdometer);
+      const e = Number(day.endOdometer);
+      if (!isNaN(s) && !isNaN(e) && e >= s && day.startOdometer !== '' && day.endOdometer !== '') return `${e - s} km`;
+      return '0 km';
+    })();
+
     return (
-      <div key={day.date} className="glass-panel day-panel no-print" style={{ marginBottom: '1rem', padding: 0, overflow: 'hidden' }}>
+      <div key={day.date} className={`glass-panel day-panel no-print ${dayIsToday ? 'day-today' : ''}`} style={{ marginBottom: '1rem', padding: 0, overflow: 'hidden' }}>
         {/* Row 1: Date + collapse arrow */}
         <div
           className="day-panel-header"
@@ -300,12 +391,22 @@ export default function App() {
             padding: '0.75rem 2rem 0.75rem 1rem', cursor: 'pointer',
             borderBottom: isCollapsed ? 'none' : '1px solid var(--border-color)',
             userSelect: 'none',
+            background: dayIsToday ? 'rgba(59, 130, 246, 0.08)' : undefined,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: '1rem' }}>
-            {format(parseISO(day.date), 'EEEE, MMMM d, yyyy')}
-            {day.locked && <Lock size={14} style={{ marginLeft: '8px', color: 'var(--accent-red)', verticalAlign: 'middle' }} />}
-          </h3>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1rem' }}>
+              {format(parseISO(day.date), 'EEEE, MMMM d, yyyy')}
+              {day.locked && <Lock size={14} style={{ marginLeft: '8px', color: 'var(--accent-red)', verticalAlign: 'middle' }} />}
+            </h3>
+            {isCollapsed && (
+              <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Off-Duty: {fmtH(counts['off-duty'] || 0)} · Driving: {fmtH(counts['driving'] || 0)} · On-Duty: {fmtH(counts['on-duty'] || 0)}
+                {preferences.showSleeper && <> · Sleeper: {fmtH(counts['sleeper'] || 0)}</>}
+                {' '} · Distance: {totalKm}
+              </div>
+            )}
+          </div>
           <span style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', display: 'inline-block', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}>
             ▼
           </span>
@@ -410,6 +511,7 @@ export default function App() {
               setGrid={(newGrid) => updateSelectedDayGrid(idx, newGrid)}
               preferences={preferences}
               locked={day.locked}
+              highlightHour={currentHour}
             />
             <div style={{ marginTop: '1rem' }}>
               <Totals grid={day.grid} preferences={preferences} startOdometer={day.startOdometer} endOdometer={day.endOdometer} />
@@ -422,57 +524,57 @@ export default function App() {
 
   return (
     <div className="app-container">
-          {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
-            <div className="glass-panel no-print" style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '1rem',
-              padding: '0.75rem',
-              fontSize: '0.875rem',
-              background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-              borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)',
-              marginTop: '0.5rem',
-              marginBottom: '0.5rem'
-            }}>
-              {!isOnline ? (
-                <><WifiOff size={16} color="var(--accent-red)" /> <span>Working Offline</span></>
-              ) : installPrompt ? (
-                <>
-                  <Plus size={16} color="var(--accent-blue)" />
-                  <span>Install Synodos Log for the best experience</span>
-                  <button className="btn-primary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={handleInstallClick}>
-                    Install Now
-                  </button>
-                </>
-              ) : !isStandalone && !offlineReady ? (
-                <>
-                  <Settings size={16} color="var(--accent-blue)" />
-                  <span>To install: Open browser menu & select <b>"Add to Home Screen"</b></span>
-                </>
-              ) : offlineReady ? (
-                <><CloudDownload size={16} color="var(--accent-green)" /> <span>Ready to work offline</span></>
-              ) : needRefresh ? (
-                <>
-                  <span>New content available!</span>
-                  <button className="btn-primary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={() => updateServiceWorker(true)}>
-                    Update
-                  </button>
-                </>
-              ) : null}
-              {(offlineReady || needRefresh || installPrompt || !isStandalone) && (
-                <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => {
-                  setOfflineReady(false);
-                  setNeedRefresh(false);
-                  setInstallPrompt(null);
-                  if (!isStandalone) {
-                    setShowInstallBanner(false);
-                    localStorage.setItem('hide-install-banner', 'true');
-                  }
-                }}>✕</button>
-              )}
-            </div>
+      {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
+        <div className="glass-panel no-print" style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '1rem',
+          padding: '0.75rem',
+          fontSize: '0.875rem',
+          background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+          borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)',
+          marginTop: '0.5rem',
+          marginBottom: '0.5rem'
+        }}>
+          {!isOnline ? (
+            <><WifiOff size={16} color="var(--accent-red)" /> <span>Working Offline</span></>
+          ) : installPrompt ? (
+            <>
+              <Plus size={16} color="var(--accent-blue)" />
+              <span>Install Synodos Log for the best experience</span>
+              <button className="btn-primary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={handleInstallClick}>
+                Install Now
+              </button>
+            </>
+          ) : !isStandalone && !offlineReady ? (
+            <>
+              <Settings size={16} color="var(--accent-blue)" />
+              <span>To install: Open browser menu & select <b>"Add to Home Screen"</b></span>
+            </>
+          ) : offlineReady ? (
+            <><CloudDownload size={16} color="var(--accent-green)" /> <span>Ready to work offline</span></>
+          ) : needRefresh ? (
+            <>
+              <span>New content available!</span>
+              <button className="btn-primary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={() => updateServiceWorker(true)}>
+                Update
+              </button>
+            </>
+          ) : null}
+          {(offlineReady || needRefresh || installPrompt || !isStandalone) && (
+            <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => {
+              setOfflineReady(false);
+              setNeedRefresh(false);
+              setInstallPrompt(null);
+              if (!isStandalone) {
+                setShowInstallBanner(false);
+                localStorage.setItem('hide-install-banner', 'true');
+              }
+            }}>✕</button>
           )}
+        </div>
+      )}
 
       {view === 'dashboard' ? (
         <>
@@ -513,9 +615,9 @@ export default function App() {
                 <div key={log.id} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <h3 style={{ margin: 0 }}>Week of {log.id}</h3>
-                    <button 
-                      className="tool-btn" 
-                      style={{ padding: '0.5rem', color: 'var(--accent-green)', margin: '-0.5rem -0.5rem 0 0' }} 
+                    <button
+                      className="tool-btn"
+                      style={{ padding: '0.5rem', color: 'var(--accent-green)', margin: '-0.5rem -0.5rem 0 0' }}
                       onClick={() => handleExportDashboardPDF(log)}
                       title={t('exportPdf', preferences.language)}
                     >
@@ -593,11 +695,11 @@ export default function App() {
         </>
       )}
 
-      <PreferencesMenu 
-        preferences={preferences} 
-        setPreferences={setPreferences} 
-        isOpen={isPrefsOpen} 
-        onClose={() => setIsPrefsOpen(false)} 
+      <PreferencesMenu
+        preferences={preferences}
+        setPreferences={setPreferences}
+        isOpen={isPrefsOpen}
+        onClose={() => setIsPrefsOpen(false)}
         installPrompt={installPrompt}
         isStandalone={isStandalone}
         onInstall={handleInstallClick}

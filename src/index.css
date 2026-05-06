@@ -497,6 +497,33 @@ h6 {
   }
 }
 
+/* Current hour highlight */
+.grid-hour-header.hour-highlight {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+.hour-block.hour-highlight {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.hour-block.hour-highlight .quarter-cell:not([class*="active-"]) {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+body.light-mode .grid-hour-header.hour-highlight {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+body.light-mode .hour-block.hour-highlight {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+/* Today panel */
+.day-panel.day-today {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue), 0 2px 12px rgba(59, 130, 246, 0.15);
+}
+
 /* Day panel collapsible */
 .day-panel-header:hover {
   background: var(--bg-tertiary);
