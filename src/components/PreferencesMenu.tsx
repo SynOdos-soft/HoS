@@ -16,6 +16,22 @@ interface PreferencesMenuProps {
 
 const VERSIONS = [
   {
+    version: '0.6.0',
+    date: '2026-05-07',
+    features: [
+      'New Roadside Inspection PDF Export with 15-day history.',
+      'Added solid vertical marker and graph cutoff for inspection reports.',
+      'Detailed "Last edited" timestamps with seconds and timezone.',
+      'Auto-lock past days with a warning system for manual overrides.',
+      'Multi-page PDF support for long logs.',
+      'Current hour highlighting in light blue on the grid.',
+      'Moved Roadside Inspection trigger to General settings.'
+    ],
+    fixes: [
+      'Improved PDF generation for large 15-day reports.'
+    ]
+  },
+  {
     version: '0.5.0',
     date: '2026-05-02',
     features: [
