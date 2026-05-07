@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Preferences } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, X, Truck, FileText, Download, Info } from 'lucide-react';
+import { Settings, X, Truck, FileText, Download, Info, Shield } from 'lucide-react';
 
 interface PreferencesMenuProps {
   preferences: Preferences;
@@ -11,6 +11,7 @@ interface PreferencesMenuProps {
   installPrompt?: any;
   isStandalone?: boolean;
   onInstall?: () => void;
+  onRoadsidePDF?: () => void;
 }
 
 const VERSIONS = [
@@ -60,7 +61,7 @@ const VERSIONS = [
 
 export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   preferences, setPreferences, isOpen, onClose,
-  installPrompt, isStandalone, onInstall
+  installPrompt, isStandalone, onInstall, onRoadsidePDF
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'trucking' | 'install' | 'version'>('general');
 
@@ -163,6 +164,26 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                   <input type="checkbox" checked={preferences.showTimestamps} onChange={() => toggleBoolean('showTimestamps')} />
                   {t('showTimestamps', preferences.language) || 'Show Timestamps in Cells'}
                 </label>
+
+                <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
+
+                <h3 style={{ margin: 0, color: 'var(--accent-red)' }}>Roadside Inspection</h3>
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '1rem',
+                    padding: '1rem', cursor: 'pointer',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid var(--accent-red)',
+                    borderRadius: '8px',
+                  }}
+                  onClick={() => { if (onRoadsidePDF) { onRoadsidePDF(); onClose(); } }}
+                >
+                  <Shield size={22} color="var(--accent-red)" />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Export 15-Day PDF</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Generate last 15 days for officer review</div>
+                  </div>
+                </div>
               </div>
             )}
 

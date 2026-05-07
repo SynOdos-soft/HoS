@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { WeeklyLog, Status, Preferences } from '../types';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isToday } from 'date-fns';
 
 export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
   const doc = new jsPDF({
@@ -12,6 +12,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
   const margin = 10;
   const pageWidth = 210;
   const contentWidth = pageWidth - margin * 2;
+  const exportTime = new Date();
 
   // Header Title
   doc.setFillColor(0, 0, 0);
@@ -92,7 +93,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
   }
   y += 11;
 
-  // Render the 7 days
+  // Render all days (supports multi-page)
   const statusLabels = preferences.showSleeper
     ? ['Off-Duty', 'Sleeper', 'Driving', 'On-Duty']
     : ['Off-Duty', 'Driving', 'On-Duty'];
@@ -103,8 +104,17 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
   const quarterWidth = hourWidth / 4;
   const rowHeight = 3.5;
   const gridHeight = rowHeight * statusLabels.length;
+  const pageHeight = 297; // A4 height in mm
+  const bottomMargin = 12;
+  const dayBlockHeight = 5 + 3 + gridHeight + 10; // header + hours bar + grid + remarks
 
   log.days.forEach((day) => {
+    // Check if we need a new page
+    if (y + dayBlockHeight > pageHeight - bottomMargin) {
+      doc.addPage();
+      y = margin;
+    }
+
     // Calculate totals first to show in header
     const counts = day.grid.reduce((acc, s) => { acc[s] = (acc[s] || 0) + 1; return acc; }, {} as Record<Status, number>);
     const formatH = (q: number) => `${Math.floor(q / 4)}:${String((q % 4) * 15).padStart(2, '0')}`;
@@ -196,7 +206,14 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
       let currentStatus = day.grid[0];
       let prevY = getRowY(currentStatus);
 
+      const isDayToday = isToday(dayDate);
+      const nowHour = exportTime.getHours();
+      const nowMin = exportTime.getMinutes();
+      const nowQuarterLimit = nowHour * 4 + Math.floor(nowMin / 15);
+
       for (let i = 0; i < 96; i++) {
+        if (isDayToday && i > nowQuarterLimit) break;
+
         const status = day.grid[i] || 'off-duty';
         const nextX = margin + labelWidth + (i + 1) * quarterWidth;
         const targetY = getRowY(status);
@@ -213,6 +230,20 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
     }
 
     y += gridHeight;
+
+    // Draw vertical marker on today's grid
+    if (isToday(dayDate)) {
+      const nowHour = exportTime.getHours();
+      const nowMin = exportTime.getMinutes();
+      const nowFraction = (nowHour * 4 + Math.floor(nowMin / 15)) + (nowMin % 15) / 15;
+      const nowX = margin + labelWidth + nowFraction * quarterWidth;
+
+      // Red solid vertical line
+      doc.setDrawColor(220, 38, 38);
+      doc.setLineWidth(0.4);
+      doc.line(nowX, gridY, nowX, gridY + gridHeight);
+      doc.setDrawColor(0);
+    }
 
     // Combined Remarks/Odometer/Cycle
     doc.setLineWidth(0.2);
@@ -234,10 +265,26 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
     const cmvPlateInfo = preferences.showSameVehicle && day.sameVehicle === false && day.cmvPlate ? ` | CMV Plate: ${day.cmvPlate}` : '';
 
     doc.text(`${cycleInfo} | ${odoInfo}${userRemarks}${cmvPlateInfo}`, margin + 1, y + 6);
+
+    // Last edited timestamp
+    if (day.lastEdited) {
+      const editDate = new Date(day.lastEdited);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const tz = editDate.toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || '';
+      const editStr = `${editDate.getFullYear()} - ${pad(editDate.getMonth() + 1)} - ${pad(editDate.getDate())} / ${pad(editDate.getHours())}:${pad(editDate.getMinutes())}:${pad(editDate.getSeconds())} ${tz}`;
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Last edited: ${editStr}`, margin + contentWidth - 1, y + 6, { align: 'right' });
+    }
+
     y += 9;
   });
 
-  // Footer Signature
+  // Footer Signature — check if we need a new page
+  if (y + 20 > pageHeight - bottomMargin) {
+    doc.addPage();
+    y = margin;
+  }
   y += 5;
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');

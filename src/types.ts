@@ -25,6 +25,7 @@ export interface DayEntry {
   locked?: boolean;
   sameVehicle?: boolean;
   cmvPlate?: string;
+  lastEdited?: string; // ISO timestamp of last edit
 }
 
 export interface WeeklyLog {

@@ -6,8 +6,8 @@ import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy } from 'lucide-react';
-import { startOfWeek, addDays, format, parseISO, getWeek, isToday } from 'date-fns';
+import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy, Shield } from 'lucide-react';
+import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { WifiOff, CloudDownload } from 'lucide-react';
@@ -29,6 +29,7 @@ const DEFAULT_METADATA: WeeklyMetadata = {
 };
 
 const createEmptyDays = (startDate: Date): DayEntry[] => {
+  const today = startOfDay(new Date());
   return Array.from({ length: 7 }).map((_, i) => {
     const d = addDays(startDate, i);
     return {
@@ -37,9 +38,10 @@ const createEmptyDays = (startDate: Date): DayEntry[] => {
       remarks: '',
       startOdometer: '',
       endOdometer: '',
-      locked: false,
+      locked: isBefore(d, today),
       sameVehicle: true,
-      cmvPlate: ''
+      cmvPlate: '',
+      lastEdited: new Date().toISOString(),
     };
   });
 };
@@ -243,7 +245,15 @@ export default function App() {
     if (log) {
       setCurrentId(log.id);
       setMetadata(log.metadata);
-      setDays(log.days);
+      
+      // Lock past days if not already locked
+      const today = startOfDay(new Date());
+      const daysWithLocks = log.days.map(day => ({
+        ...day,
+        locked: day.locked || isBefore(parseISO(day.date), today)
+      }));
+      
+      setDays(daysWithLocks);
       setSelectedDayIndex(0);
       setView('editor');
     }
@@ -280,6 +290,56 @@ export default function App() {
     generatePDF(log, preferences);
   };
 
+  // Roadside Inspection Mode — PDF only
+  const handleRoadsidePDF = async () => {
+    const today = new Date();
+    const allLogs = await getAllLogs();
+
+    // Collect all days from all logs
+    const allDays: DayEntry[] = [];
+    allLogs.forEach(log => {
+      log.days.forEach(day => allDays.push(day));
+    });
+
+    // Get today + previous 14 days (15 total)
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const startDateStr = format(subDays(today, 14), 'yyyy-MM-dd');
+    const filteredDays = allDays.filter(d => d.date >= startDateStr && d.date <= todayStr);
+
+    // Fill in missing days with empty off-duty entries
+    const filledDays: DayEntry[] = [];
+    for (let i = 14; i >= 0; i--) {
+      const dateStr = format(subDays(today, i), 'yyyy-MM-dd');
+      const existing = filteredDays.find(d => d.date === dateStr);
+      if (existing) {
+        filledDays.push(existing);
+      } else {
+        filledDays.push({
+          date: dateStr,
+          grid: Array(96).fill('off-duty'),
+          remarks: '',
+          startOdometer: '',
+          endOdometer: '',
+          locked: true,
+          sameVehicle: true,
+          cmvPlate: '',
+        });
+      }
+    }
+
+    // Use metadata from the most recent log if available
+    const currentWeekId = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const currentLog = allLogs.find(l => l.id === currentWeekId);
+    const md = currentLog ? currentLog.metadata : DEFAULT_METADATA;
+
+    const log: WeeklyLog = {
+      id: `roadside-${todayStr}`,
+      metadata: md,
+      days: filledDays,
+    };
+    generatePDF(log, preferences);
+  };
+
   // Auto-save debounced effect
   useEffect(() => {
     if (preferences.autoSave && view === 'editor' && currentId) {
@@ -295,6 +355,7 @@ export default function App() {
       const updated = [...prev];
       const currentGrid = updated[idx].grid;
       updated[idx].grid = typeof newGrid === 'function' ? newGrid(currentGrid) : newGrid;
+      updated[idx].lastEdited = new Date().toISOString();
       return updated;
     });
   };
@@ -302,7 +363,7 @@ export default function App() {
   const updateSelectedDayField = (idx: number, field: 'remarks' | 'startOdometer' | 'endOdometer' | 'sameVehicle' | 'cmvPlate', value: any) => {
     setDays((prev) => {
       const updated = [...prev];
-      updated[idx] = { ...updated[idx], [field]: value };
+      updated[idx] = { ...updated[idx], [field]: value, lastEdited: new Date().toISOString() };
 
       // Auto-populate next day's start odometer if end odometer is changed and next day has "same vehicle" checked
       if (field === 'endOdometer' && idx < 6) {
@@ -325,6 +386,18 @@ export default function App() {
   };
 
   const toggleDayLock = (idx: number) => {
+    const day = days[idx];
+    const dayDate = parseISO(day.date);
+    const isPast = isBefore(dayDate, startOfDay(new Date()));
+
+    // If trying to unlock a past day, warn the user
+    if (day.locked && isPast) {
+      const confirmed = window.confirm(
+        'This day is in the past. Unlocking and editing it will be reflected on the Roadside Inspection report with an updated timestamp.\n\nDo you want to continue?'
+      );
+      if (!confirmed) return;
+    }
+
     setDays((prev) => {
       const updated = [...prev];
       updated[idx] = { ...updated[idx], locked: !updated[idx].locked };
@@ -441,6 +514,16 @@ export default function App() {
                   placeholder="..."
                   disabled={day.locked}
                 />
+                {day.lastEdited && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '0.4rem' }}>
+                    {(() => {
+                      const editDate = new Date(day.lastEdited);
+                      const pad = (n: number) => String(n).padStart(2, '0');
+                      const tz = editDate.toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || '';
+                      return `Last edited: ${editDate.getFullYear()} - ${pad(editDate.getMonth() + 1)} - ${pad(editDate.getDate())} / ${pad(editDate.getHours())}:${pad(editDate.getMinutes())}:${pad(editDate.getSeconds())} ${tz}`;
+                    })()}
+                  </div>
+                )}
               </div>
 
               {preferences.showSameVehicle && (
@@ -605,6 +688,7 @@ export default function App() {
             </div>
           </header>
 
+
           <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', marginTop: '1rem' }}>
             {savedLogs.length === 0 ? (
               <div className="glass-panel" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
@@ -703,6 +787,7 @@ export default function App() {
         installPrompt={installPrompt}
         isStandalone={isStandalone}
         onInstall={handleInstallClick}
+        onRoadsidePDF={handleRoadsidePDF}
       />
 
       <footer className="no-print" style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: 'auto' }}>
