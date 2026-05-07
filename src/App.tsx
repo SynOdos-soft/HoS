@@ -337,7 +337,7 @@ export default function App() {
       metadata: md,
       days: filledDays,
     };
-    generatePDF(log, preferences);
+    generatePDF(log, preferences, true);
   };
 
   // Auto-save debounced effect

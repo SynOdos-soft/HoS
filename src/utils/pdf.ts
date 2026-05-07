@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import { WeeklyLog, Status, Preferences } from '../types';
 import { format, parseISO, isToday } from 'date-fns';
 
-export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
+export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspection = false) => {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -212,7 +212,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
       const nowQuarterLimit = nowHour * 4 + Math.floor(nowMin / 15);
 
       for (let i = 0; i < 96; i++) {
-        if (isDayToday && i > nowQuarterLimit) break;
+        if (isInspection && isDayToday && i > nowQuarterLimit) break;
 
         const status = day.grid[i] || 'off-duty';
         const nextX = margin + labelWidth + (i + 1) * quarterWidth;
@@ -231,8 +231,8 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
 
     y += gridHeight;
 
-    // Draw vertical marker on today's grid
-    if (isToday(dateObj)) {
+    // Draw vertical marker on today's grid (Inspection only)
+    if (isInspection && isToday(dateObj)) {
       const nowHour = exportTime.getHours();
       const nowMin = exportTime.getMinutes();
       const nowFraction = (nowHour * 4 + Math.floor(nowMin / 15)) + (nowMin % 15) / 15;
@@ -266,8 +266,8 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
 
     doc.text(`${cycleInfo} | ${odoInfo}${userRemarks}${cmvPlateInfo}`, margin + 1, y + 6);
 
-    // Last edited timestamp
-    if (day.lastEdited) {
+    // Last edited timestamp (Inspection only)
+    if (isInspection && day.lastEdited) {
       const editDate = new Date(day.lastEdited);
       const pad = (n: number) => String(n).padStart(2, '0');
       const tz = editDate.toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || '';
