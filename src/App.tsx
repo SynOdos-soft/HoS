@@ -6,7 +6,7 @@ import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy, Shield } from 'lucide-react';
+import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';

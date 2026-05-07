@@ -206,7 +206,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
       let currentStatus = day.grid[0];
       let prevY = getRowY(currentStatus);
 
-      const isDayToday = isToday(dayDate);
+      const isDayToday = isToday(dateObj);
       const nowHour = exportTime.getHours();
       const nowMin = exportTime.getMinutes();
       const nowQuarterLimit = nowHour * 4 + Math.floor(nowMin / 15);
@@ -232,7 +232,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences) => {
     y += gridHeight;
 
     // Draw vertical marker on today's grid
-    if (isToday(dayDate)) {
+    if (isToday(dateObj)) {
       const nowHour = exportTime.getHours();
       const nowMin = exportTime.getMinutes();
       const nowFraction = (nowHour * 4 + Math.floor(nowMin / 15)) + (nowMin % 15) / 15;
