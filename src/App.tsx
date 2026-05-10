@@ -193,10 +193,10 @@ export default function App() {
       setMetadata(log.metadata);
       setAuditLog(log.auditLog || []);
       const today = startOfDay(new Date());
-      // Auto-lock past days only if they don't have a locked status already or if it's a new load
+      // Auto-lock past days on load to ensure compliance
       const d = log.days.map(day => ({ 
         ...day, 
-        locked: day.locked ?? isBefore(parseISO(day.date), today) 
+        locked: day.locked || isBefore(parseISO(day.date), today) 
       }));
       setDays(d);
       setLastSavedLog({ ...log, days: d });
@@ -609,7 +609,13 @@ export default function App() {
               <>
                 <div className="no-print" style={{ display: 'flex', overflowX: 'auto', gap: '0.5rem', marginBottom: '1rem' }}>
                   {days.map((d, i) => (
-                    <button key={d.date} className={`tool-btn ${selectedDayIndex === i ? 'active' : ''}`} onClick={() => setSelectedDayIndex(i)} style={{ minWidth: '100px' }}>{format(parseISO(d.date), 'EEE')}<br/>{format(parseISO(d.date), 'MMM d')}</button>
+                    <button key={d.date} className={`tool-btn ${selectedDayIndex === i ? 'active' : ''}`} onClick={() => setSelectedDayIndex(i)} style={{ minWidth: '100px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.6rem 1rem' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                        {format(parseISO(d.date), 'EEE')}
+                        {d.locked && <Lock size={14} color="#ef4444" />}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{format(parseISO(d.date), 'MMM d')}</span>
+                    </button>
                   ))}
                 </div>
                 {days[selectedDayIndex] && renderDayPanel(days[selectedDayIndex], selectedDayIndex)}
