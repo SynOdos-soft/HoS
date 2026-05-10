@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
 @config "../tailwind.config.js";
 @tailwind base;
 @tailwind components;
@@ -64,12 +65,12 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
 
 :root {
   --bg-primary: #0f172a;
@@ -106,7 +107,7 @@ body.light-mode {
   --text-secondary: #475569;
 
   --border-color: #cbd5e1;
-  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-bg: #ffffff;
   --glass-border: rgba(0, 0, 0, 0.05);
   --shadow-glow: 0 4px 20px rgba(0, 0, 0, 0.08);
 
@@ -464,6 +465,10 @@ h6 {
   color: var(--status-on-duty);
 }
 
+.total-card.distance .value {
+  color: var(--bg-tertiary);
+}
+
 /* Button */
 .btn-primary {
   background: var(--accent-blue);
@@ -659,4 +664,79 @@ body.light-mode .hour-block.hour-highlight {
   .totals-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+/* Audit View & Diff Table */
+.audit-table-container {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+}
+
+.audit-table th {
+  text-align: left;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--glass-border);
+}
+
+.audit-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--glass-border);
+  vertical-align: top;
+}
+
+.audit-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.original-value {
+  display: inline-block;
+  text-decoration: line-through;
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  opacity: 0.8;
+}
+
+.new-value {
+  display: inline-block;
+  color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.audit-reason {
+  font-style: italic;
+  color: var(--accent-orange);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.audit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-orange);
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }

@@ -3,14 +3,15 @@ import { Grid } from './components/Grid';
 import { Totals } from './components/Totals';
 import { MetadataForm } from './components/MetadataForm';
 import { PreferencesMenu } from './components/PreferencesMenu';
-import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS } from './types';
+import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS, AuditEntry } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy } from 'lucide-react';
+import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy, WifiOff } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { WifiOff, CloudDownload } from 'lucide-react';
+import { AuditView } from './components/AuditView';
+import { ReasonModal } from './components/ReasonModal';
 
 const DEFAULT_METADATA: WeeklyMetadata = {
   homeTerminalAddress: '',
@@ -47,20 +48,22 @@ const createEmptyDays = (startDate: Date): DayEntry[] => {
 };
 
 export default function App() {
-  const [view, setView] = useState<'dashboard' | 'editor'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'editor' | 'audit'>('dashboard');
+  const [auditReturnView, setAuditReturnView] = useState<'dashboard' | 'editor'>('dashboard');
   const [savedLogs, setSavedLogs] = useState<WeeklyLog[]>([]);
 
-  // Preferences State
   const [preferences, setPreferences] = useState<Preferences>(() => {
     const saved = localStorage.getItem('hos-preferences');
     return saved ? JSON.parse(saved) : DEFAULT_PREFS;
   });
   const [isPrefsOpen, setIsPrefsOpen] = useState(false);
 
-  // Editor State
   const [currentId, setCurrentId] = useState<string>('');
   const [metadata, setMetadata] = useState<WeeklyMetadata>(DEFAULT_METADATA);
   const [days, setDays] = useState<DayEntry[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [lastSavedLog, setLastSavedLog] = useState<WeeklyLog | null>(null);
+  const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
   const [autoLoaded, setAutoLoaded] = useState(false);
@@ -77,32 +80,15 @@ export default function App() {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
   }, []);
 
-  // PWA Registration
-  const {
-    offlineReady: [offlineReady, setOfflineReady],
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered() {
-      console.log('SW Registered');
-    },
-    onRegisterError(error) {
-      console.log('SW registration error', error);
-    },
-  });
+  const { offlineReady: [offlineReady], needRefresh: [needRefresh] } = useRegisterSW();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-    const handleInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-
+    const handleInstallPrompt = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -114,28 +100,17 @@ export default function App() {
     if (!installPrompt) return;
     installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setInstallPrompt(null);
-    }
+    if (outcome === 'accepted') setInstallPrompt(null);
   };
 
-  // Apply theme class
   useEffect(() => {
-    if (preferences.theme === 'light') {
-      document.body.classList.add('light-mode');
-    } else {
-      document.body.classList.remove('light-mode');
-    }
+    if (preferences.theme === 'light') document.body.classList.add('light-mode');
+    else document.body.classList.remove('light-mode');
     localStorage.setItem('hos-preferences', JSON.stringify(preferences));
   }, [preferences]);
 
-  useEffect(() => {
-    if (view === 'dashboard') {
-      loadDashboard();
-    }
-  }, [view]);
+  useEffect(() => { if (view === 'dashboard') loadDashboard(); }, [view]);
 
-  // Auto-load current week on first mount
   useEffect(() => {
     if (!autoLoaded) {
       setAutoLoaded(true);
@@ -148,21 +123,18 @@ export default function App() {
     const monday = startOfWeek(today, { weekStartsOn: 1 });
     const weekId = format(monday, 'yyyy-MM-dd');
     const existingLog = await getLog(weekId);
-
     if (existingLog) {
       setCurrentId(existingLog.id);
       setMetadata(existingLog.metadata);
       setDays(existingLog.days);
-      // Find today's index
+      setAuditLog(existingLog.auditLog || []);
+      setLastSavedLog(existingLog);
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayIdx = existingLog.days.findIndex(d => d.date === todayStr);
       setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
-      // Collapse all days except today
-      const collapsed = new Set(existingLog.days.map(d => d.date).filter(d => d !== todayStr));
-      setCollapsedDays(collapsed);
+      setCollapsedDays(new Set(existingLog.days.map(d => d.date).filter(d => d !== todayStr)));
       setView('editor');
     } else {
-      // Create new week for current week
       startNewWeekWithToday(today);
     }
   };
@@ -178,29 +150,19 @@ export default function App() {
     const sunday = addDays(monday, 6);
     const id = format(monday, 'yyyy-MM-dd');
     setCurrentId(id);
-
-    let monthStr = format(monday, 'MMMM');
-    const sundayMonthStr = format(sunday, 'MMMM');
-    if (monthStr !== sundayMonthStr) {
-      monthStr = `${monthStr} - ${sundayMonthStr}`;
-    }
-
-    setMetadata({
-      ...DEFAULT_METADATA,
-      month: monthStr,
-      year: format(monday, 'yyyy'),
-      weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(),
-      cycle: preferences.defaultCycle || '7-Day',
-      driverName: preferences.defaultDriverName || '',
-      operatorName: preferences.defaultOperatorName || '',
-      operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '',
-      homeTerminalAddress: preferences.defaultHomeTerminalAddress || '',
-      cmvPlate: preferences.defaultCmvPlate || '',
-    });
-    const newDays = createEmptyDays(monday);
-    setDays(newDays);
-    setSelectedDayIndex(0);
-    setCollapsedDays(new Set());
+    let mStr = format(monday, 'MMMM');
+    if (mStr !== format(sunday, 'MMMM')) mStr += ` - ${format(sunday, 'MMMM')}`;
+    const md = { ...DEFAULT_METADATA, month: mStr, year: format(monday, 'yyyy'), weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
+    setMetadata(md);
+    const d = createEmptyDays(monday);
+    setDays(d);
+    setAuditLog([]);
+    setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
+    
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayIdx = d.findIndex(x => x.date === todayStr);
+    setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
+    setCollapsedDays(new Set(d.map(x => x.date).filter(x => x !== todayStr)));
     setView('editor');
   };
 
@@ -209,34 +171,18 @@ export default function App() {
     const sunday = addDays(monday, 6);
     const id = format(monday, 'yyyy-MM-dd');
     setCurrentId(id);
-
-    let monthStr = format(monday, 'MMMM');
-    const sundayMonthStr = format(sunday, 'MMMM');
-    if (monthStr !== sundayMonthStr) {
-      monthStr = `${monthStr} - ${sundayMonthStr}`;
-    }
-
-    setMetadata({
-      ...DEFAULT_METADATA,
-      month: monthStr,
-      year: format(monday, 'yyyy'),
-      weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(),
-      cycle: preferences.defaultCycle || '7-Day',
-      driverName: preferences.defaultDriverName || '',
-      operatorName: preferences.defaultOperatorName || '',
-      operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '',
-      homeTerminalAddress: preferences.defaultHomeTerminalAddress || '',
-      cmvPlate: preferences.defaultCmvPlate || '',
-    });
-    const newDays = createEmptyDays(monday);
-    setDays(newDays);
-
+    let mStr = format(monday, 'MMMM');
+    if (mStr !== format(sunday, 'MMMM')) mStr += ` - ${format(sunday, 'MMMM')}`;
+    const md = { ...DEFAULT_METADATA, month: mStr, year: format(monday, 'yyyy'), weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
+    setMetadata(md);
+    const d = createEmptyDays(monday);
+    setDays(d);
+    setAuditLog([]);
+    setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
     const todayStr = format(today, 'yyyy-MM-dd');
-    const todayIdx = newDays.findIndex(d => d.date === todayStr);
+    const todayIdx = d.findIndex(x => x.date === todayStr);
     setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
-    // Collapse all days except today
-    const collapsed = new Set(newDays.map(d => d.date).filter(d => d !== todayStr));
-    setCollapsedDays(collapsed);
+    setCollapsedDays(new Set(d.map(x => x.date).filter(x => x !== todayStr)));
     setView('editor');
   };
 
@@ -245,189 +191,214 @@ export default function App() {
     if (log) {
       setCurrentId(log.id);
       setMetadata(log.metadata);
-      
-      // Lock past days if not already locked
+      setAuditLog(log.auditLog || []);
       const today = startOfDay(new Date());
-      const daysWithLocks = log.days.map(day => ({
-        ...day,
-        locked: day.locked || isBefore(parseISO(day.date), today)
+      // Auto-lock past days only if they don't have a locked status already or if it's a new load
+      const d = log.days.map(day => ({ 
+        ...day, 
+        locked: day.locked ?? isBefore(parseISO(day.date), today) 
       }));
+      setDays(d);
+      setLastSavedLog({ ...log, days: d });
       
-      setDays(daysWithLocks);
-      setSelectedDayIndex(0);
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const todayIdx = d.findIndex(x => x.date === todayStr);
+      setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
+      setCollapsedDays(new Set(d.map(x => x.date).filter(x => x !== todayStr)));
       setView('editor');
     }
   };
 
   const handleDeleteLog = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this log?')) {
-      await deleteLog(id);
-      loadDashboard();
-    }
+    if (window.confirm('Delete this log?')) { await deleteLog(id); loadDashboard(); }
   };
 
-  const handleSave = async () => {
+  const getAuditDiffs = (oldLog: WeeklyLog, newLog: WeeklyLog, reason: string): AuditEntry[] => {
+    const diffs: AuditEntry[] = [];
+    const timestamp = new Date().toISOString();
+    const today = startOfDay(new Date());
+
+    // Only audit metadata if it's a past week or already locked? 
+    // Usually metadata changes are minor, but for safety we only audit if it's not the current week's metadata
+    const isCurrentWeek = newLog.id === format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    
+    if (!isCurrentWeek) {
+      Object.keys(newLog.metadata).forEach(k => {
+        const key = k as keyof WeeklyMetadata;
+        if (oldLog.metadata[key] !== newLog.metadata[key]) {
+          diffs.push({ timestamp, field: `Metadata: ${key}`, originalValue: String(oldLog.metadata[key] || 'Empty'), newValue: String(newLog.metadata[key] || 'Empty'), editedBy: 'Driver', reason });
+        }
+      });
+    }
+
+    newLog.days.forEach((day, i) => {
+      const oldDay = oldLog.days[i];
+      if (!oldDay) return;
+
+      // RULE: Only audit if it's a past day OR it was previously locked
+      const shouldAudit = isBefore(parseISO(day.date), today) || oldDay.locked;
+      if (!shouldAudit) return;
+
+      ['remarks', 'startOdometer', 'endOdometer', 'cmvPlate', 'sameVehicle'].forEach(f => {
+        const field = f as keyof DayEntry;
+        if (day[field] !== oldDay[field]) {
+          diffs.push({ timestamp, date: day.date, field: f, originalValue: String(oldDay[field] ?? 'Empty'), newValue: String(day[field] ?? 'Empty'), editedBy: 'Driver', reason });
+        }
+      });
+      if (JSON.stringify(day.grid) !== JSON.stringify(oldDay.grid)) {
+        const getSummary = (grid: Status[]) => {
+          const counts: Record<string, number> = {};
+          grid.forEach(s => counts[s] = (counts[s] || 0) + 1);
+          return Object.entries(counts)
+            .map(([s, q]) => `${s.split('-')[0]}: ${(q / 4).toFixed(1)}h`)
+            .join(' | ');
+        };
+        const findChanges = () => {
+          const changedRanges: string[] = [];
+          let start: number | null = null;
+          for (let j = 0; j < 96; j++) {
+            if (day.grid[j] !== oldDay.grid[j]) {
+              if (start === null) start = j;
+            } else {
+              if (start !== null) {
+                const h1 = Math.floor(start / 4); const m1 = (start % 4) * 15;
+                const h2 = Math.floor(j / 4); const m2 = (j % 4) * 15;
+                changedRanges.push(`${h1}:${m1 || '00'}-${h2}:${m2 || '00'}`);
+                start = null;
+              }
+            }
+          }
+          if (start !== null) {
+            const h1 = Math.floor(start / 4); const m1 = (start % 4) * 15;
+            changedRanges.push(`${h1}:${m1 || '00'}-00:00`);
+          }
+          return changedRanges.join(', ');
+        };
+
+        diffs.push({ 
+          timestamp, 
+          date: day.date, 
+          field: 'Duty Status Grid', 
+          originalValue: `${findChanges()} (Old: ${getSummary(oldDay.grid)})`, 
+          newValue: `Modified (New: ${getSummary(day.grid)})`, 
+          editedBy: 'Driver', 
+          reason 
+        });
+      }
+    });
+    return diffs;
+  };
+
+  const handleSave = async (reason: string = '') => {
+    const today = startOfDay(new Date());
+    const needsReason = days.some((d, i) => {
+      const old = lastSavedLog?.days[i];
+      return old && (isBefore(parseISO(d.date), today) || old.locked) && JSON.stringify(d) !== JSON.stringify(old);
+    });
+    if (needsReason && !reason) { setIsReasonModalOpen(true); return; }
     setIsSaving(true);
-    const log: WeeklyLog = {
-      id: currentId,
-      metadata,
-      days,
-    };
+    let newAudit = auditLog;
+    if (lastSavedLog) newAudit = [...auditLog, ...getAuditDiffs(lastSavedLog, { id: currentId, metadata, days }, reason)];
+    const log = { id: currentId, metadata, days, auditLog: newAudit };
     await saveLog(log);
+    setAuditLog(newAudit);
+    setLastSavedLog(log);
+    setIsReasonModalOpen(false);
     setTimeout(() => setIsSaving(false), 500);
   };
 
-  const handleExportPDF = () => {
-    const log: WeeklyLog = {
-      id: currentId,
-      metadata,
-      days,
-    };
-    generatePDF(log, preferences);
-  };
+  const handleExportPDF = () => generatePDF({ id: currentId, metadata, days }, preferences);
+  const handleExportDashboardPDF = (log: WeeklyLog) => generatePDF(log, preferences);
 
-  const handleExportDashboardPDF = (log: WeeklyLog) => {
-    generatePDF(log, preferences);
-  };
-
-  // Roadside Inspection Mode — PDF only
   const handleRoadsidePDF = async () => {
     const today = new Date();
     const allLogs = await getAllLogs();
-
-    // Collect all days from all logs
     const allDays: DayEntry[] = [];
-    allLogs.forEach(log => {
-      log.days.forEach(day => allDays.push(day));
-    });
-
-    // Get today + previous 14 days (15 total)
+    allLogs.forEach(l => l.days.forEach(d => allDays.push(d)));
     const todayStr = format(today, 'yyyy-MM-dd');
-    const startDateStr = format(subDays(today, 14), 'yyyy-MM-dd');
-    const filteredDays = allDays.filter(d => d.date >= startDateStr && d.date <= todayStr);
-
-    // Fill in missing days with empty off-duty entries
-    const filledDays: DayEntry[] = [];
+    const startStr = format(subDays(today, 14), 'yyyy-MM-dd');
+    const filtered = allDays.filter(d => d.date >= startStr && d.date <= todayStr);
+    const filled: DayEntry[] = [];
     for (let i = 14; i >= 0; i--) {
-      const dateStr = format(subDays(today, i), 'yyyy-MM-dd');
-      const existing = filteredDays.find(d => d.date === dateStr);
-      if (existing) {
-        filledDays.push(existing);
-      } else {
-        filledDays.push({
-          date: dateStr,
-          grid: Array(96).fill('off-duty'),
-          remarks: '',
-          startOdometer: '',
-          endOdometer: '',
-          locked: true,
-          sameVehicle: true,
-          cmvPlate: '',
-        });
-      }
+      const ds = format(subDays(today, i), 'yyyy-MM-dd');
+      const ex = filtered.find(d => d.date === ds);
+      filled.push(ex || { date: ds, grid: Array(96).fill('off-duty'), remarks: '', startOdometer: '', endOdometer: '', locked: true, sameVehicle: true, cmvPlate: '' });
     }
-
-    // Use metadata from the most recent log if available
-    const currentWeekId = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    const currentLog = allLogs.find(l => l.id === currentWeekId);
-    const md = currentLog ? currentLog.metadata : DEFAULT_METADATA;
-
-    const log: WeeklyLog = {
-      id: `roadside-${todayStr}`,
-      metadata: md,
-      days: filledDays,
-    };
-    generatePDF(log, preferences, true);
+    const cLog = allLogs.find(l => l.id === format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+    generatePDF({ id: `roadside-${todayStr}`, metadata: cLog?.metadata || DEFAULT_METADATA, days: filled }, preferences, true);
   };
 
-  // Auto-save debounced effect
   useEffect(() => {
     if (preferences.autoSave && view === 'editor' && currentId) {
       const timer = setTimeout(() => {
-        handleSave();
-      }, 1000);
+        const today = startOfDay(new Date());
+        const needsReason = days.some((d, i) => {
+          const old = lastSavedLog?.days[i];
+          return old && (isBefore(parseISO(d.date), today) || old.locked) && JSON.stringify(d) !== JSON.stringify(old);
+        });
+        if (!needsReason) handleSave();
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [days, metadata, preferences.autoSave]);
 
   const updateSelectedDayGrid = (idx: number, newGrid: Status[] | ((prev: Status[]) => Status[])) => {
-    setDays((prev) => {
+    setDays(prev => {
       const updated = [...prev];
-      const currentGrid = updated[idx].grid;
-      updated[idx].grid = typeof newGrid === 'function' ? newGrid(currentGrid) : newGrid;
+      updated[idx].grid = typeof newGrid === 'function' ? newGrid(updated[idx].grid) : newGrid;
       updated[idx].lastEdited = new Date().toISOString();
       return updated;
     });
   };
 
-  const updateSelectedDayField = (idx: number, field: 'remarks' | 'startOdometer' | 'endOdometer' | 'sameVehicle' | 'cmvPlate', value: any) => {
-    setDays((prev) => {
+  const updateSelectedDayField = (idx: number, field: string, value: any) => {
+    setDays(prev => {
       const updated = [...prev];
       updated[idx] = { ...updated[idx], [field]: value, lastEdited: new Date().toISOString() };
-
-      // Auto-populate next day's start odometer if end odometer is changed and next day has "same vehicle" checked
       if (field === 'endOdometer' && idx < 6) {
-        const nextDay = updated[idx + 1];
-        if (nextDay.sameVehicle !== false && !nextDay.locked) {
-          updated[idx + 1] = { ...nextDay, startOdometer: value };
-        }
+        const next = updated[idx + 1];
+        if (next.sameVehicle !== false && !next.locked) updated[idx + 1] = { ...next, startOdometer: value };
       }
-
-      // Auto-populate current day's start odometer if "same vehicle" is checked and previous day has an end odometer
       if (field === 'sameVehicle' && value === true && idx > 0) {
-        const prevDay = updated[idx - 1];
-        if (prevDay.endOdometer) {
-          updated[idx] = { ...updated[idx], startOdometer: prevDay.endOdometer };
-        }
+        const pDay = updated[idx - 1];
+        if (pDay.endOdometer) updated[idx] = { ...updated[idx], startOdometer: pDay.endOdometer };
       }
-
       return updated;
     });
   };
 
   const toggleDayLock = (idx: number) => {
     const day = days[idx];
-    const dayDate = parseISO(day.date);
-    const isPast = isBefore(dayDate, startOfDay(new Date()));
-
-    // If trying to unlock a past day, warn the user
-    if (day.locked && isPast) {
-      const confirmed = window.confirm(
-        'This day is in the past. Unlocking and editing it will be reflected on the Roadside Inspection report with an updated timestamp.\n\nDo you want to continue?'
-      );
-      if (!confirmed) return;
+    const isPastDay = isBefore(parseISO(day.date), startOfDay(new Date()));
+    
+    if (day.locked) {
+      // Trying to UNLOCK
+      if (isPastDay) {
+        if (!window.confirm('WARNING: Unlocking a past day for editing will be recorded in the Audit Log for compliance. Continue?')) {
+          return;
+        }
+      }
     }
 
-    setDays((prev) => {
-      const updated = [...prev];
-      updated[idx] = { ...updated[idx], locked: !updated[idx].locked };
-      return updated;
+    setDays(prev => {
+      const u = [...prev];
+      u[idx] = { ...u[idx], locked: !u[idx].locked };
+      return u;
     });
   };
 
-  const savePreset = (grid: Status[]) => {
-    localStorage.setItem('hos-preset', JSON.stringify(grid));
-    alert('Day grid saved as preset!');
+  const savePreset = (grid: Status[]) => { localStorage.setItem('hos-preset', JSON.stringify(grid)); alert('Preset saved!'); };
+  const loadPreset = (idx: number) => {
+    const p = localStorage.getItem('hos-preset');
+    if (p && !days[idx].locked) updateSelectedDayGrid(idx, JSON.parse(p));
+    else if (!p) alert('No preset.'); else alert('Locked.');
   };
 
-  const loadPreset = (idx: number) => {
-    const preset = localStorage.getItem('hos-preset');
-    if (preset) {
-      if (!days[idx].locked) {
-        updateSelectedDayGrid(idx, JSON.parse(preset));
-      } else {
-        alert('Cannot apply preset to a locked day.');
-      }
-    } else {
-      alert('No preset saved yet. Use "Save Preset" first.');
-    }
-  };
   const toggleDayCollapse = (date: string) => {
     setCollapsedDays(prev => {
-      const next = new Set(prev);
-      if (next.has(date)) next.delete(date);
-      else next.add(date);
-      return next;
+      const n = new Set(prev);
+      if (n.has(date)) n.delete(date); else n.add(date);
+      return n;
     });
   };
 
@@ -435,100 +406,69 @@ export default function App() {
     const isCollapsed = collapsedDays.has(day.date);
     const dayIsToday = isToday(parseISO(day.date));
     const currentHour = dayIsToday ? new Date().getHours() : -1;
-
-    // Calculate summary data for collapsed view
-    const counts = day.grid.reduce((acc, status) => {
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {} as Record<Status, number>);
-    const fmtH = (quarters: number) => {
-      const hours = Math.floor(quarters / 4);
-      const mins = (quarters % 4) * 15;
-      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    const counts = day.grid.reduce((acc, s) => { acc[s] = (acc[s] || 0) + 1; return acc; }, {} as Record<Status, number>);
+    const fmtH = (q: number) => {
+      const h = Math.floor(q / 4);
+      const m = (q % 4) * 15;
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
     };
     const totalKm = (() => {
-      const s = Number(day.startOdometer);
-      const e = Number(day.endOdometer);
-      if (!isNaN(s) && !isNaN(e) && e >= s && day.startOdometer !== '' && day.endOdometer !== '') return `${e - s} km`;
-      return '0 km';
+      const s = Number(day.startOdometer); const e = Number(day.endOdometer);
+      return (!isNaN(s) && !isNaN(e) && e >= s && day.startOdometer !== '' && day.endOdometer !== '') ? `${e - s} km` : '0 km';
     })();
 
     return (
       <div key={day.date} className={`glass-panel day-panel no-print ${dayIsToday ? 'day-today' : ''}`} style={{ marginBottom: '1rem', padding: 0, overflow: 'hidden' }}>
-        {/* Row 1: Date + collapse arrow */}
-        <div
-          className="day-panel-header"
-          onClick={() => toggleDayCollapse(day.date)}
-          style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '0.75rem 2rem 0.75rem 1rem', cursor: 'pointer',
-            borderBottom: isCollapsed ? 'none' : '1px solid var(--border-color)',
-            userSelect: 'none',
-            background: dayIsToday ? 'rgba(59, 130, 246, 0.08)' : undefined,
-          }}
-        >
+        <div className="day-panel-header" onClick={() => toggleDayCollapse(day.date)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: isCollapsed ? 'none' : '1px solid var(--border-color)', background: dayIsToday ? 'rgba(59, 130, 246, 0.08)' : undefined }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1rem' }}>
-              {format(parseISO(day.date), 'EEEE, MMMM d, yyyy')}
+              {format(parseISO(day.date), 'EEEE, MMM d, yyyy')} 
               {day.locked && <Lock size={14} style={{ marginLeft: '8px', color: 'var(--accent-red)', verticalAlign: 'middle' }} />}
             </h3>
             {isCollapsed && (
               <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Off-Duty: {fmtH(counts['off-duty'] || 0)} · Driving: {fmtH(counts['driving'] || 0)} · On-Duty: {fmtH(counts['on-duty'] || 0)}
-                {preferences.showSleeper && <> · Sleeper: {fmtH(counts['sleeper'] || 0)}</>}
-                {' '} · Distance: {totalKm}
+                Off: {fmtH(counts['off-duty'] || 0)} · Dr: {fmtH(counts['driving'] || 0)} · On: {fmtH(counts['on-duty'] || 0)}
+                {preferences.showSleeper && <> · Sl: {fmtH(counts['sleeper'] || 0)}</>}
+                {' '} · Dist: {totalKm}
               </div>
             )}
           </div>
-          <span style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', display: 'inline-block', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}>
-            ▼
-          </span>
+          <span style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}>▼</span>
         </div>
-
         {!isCollapsed && (
           <div style={{ padding: '1rem' }}>
-            {/* Row 2: Action buttons */}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-              <button className="tool-btn" onClick={() => savePreset(day.grid)} title={t('savePreset', preferences.language)}>
-                <Copy size={14} /> {t('savePreset', preferences.language)}
-              </button>
-              <button className="tool-btn" onClick={() => loadPreset(idx)} title={t('applyPreset', preferences.language)} disabled={day.locked}>
-                <Download size={14} /> {t('applyPreset', preferences.language)}
-              </button>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <button className="tool-btn" onClick={() => savePreset(day.grid)}><Copy size={14} /> {t('savePreset', preferences.language)}</button>
+              <button className="tool-btn" onClick={() => loadPreset(idx)} disabled={day.locked}><Download size={14} /> {t('applyPreset', preferences.language)}</button>
               <button className={`tool-btn ${day.locked ? 'active' : ''}`} onClick={() => toggleDayLock(idx)} style={{ marginLeft: 'auto' }}>
-                {day.locked ? <Lock size={14} style={{ color: 'var(--accent-red)' }} /> : <LockOpen size={14} />}
+                {day.locked ? <Lock size={14} style={{ color: 'var(--accent-red)' }} /> : <LockOpen size={14} />} 
                 {day.locked ? t('locked', preferences.language) : t('finishDay', preferences.language)}
               </button>
             </div>
 
-            {/* Odometer + Remarks */}
-            <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-              <div style={{ flex: 1, minWidth: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t('remarks', preferences.language)}</label>
-                <input
-                  type="text"
-                  className="input-group"
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                  value={day.remarks || ''}
-                  onChange={(e) => updateSelectedDayField(idx, 'remarks', e.target.value)}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="input-group" style={{ flex: 1, minWidth: '100%' }}>
+                <label>{t('remarks', preferences.language)}</label>
+                <input 
+                  type="text" 
+                  value={day.remarks || ''} 
+                  onChange={e => updateSelectedDayField(idx, 'remarks', e.target.value)} 
+                  disabled={day.locked} 
                   placeholder="..."
-                  disabled={day.locked}
                 />
                 {day.lastEdited && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '0.4rem' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '0.3rem' }}>
                     {(() => {
-                      const editDate = new Date(day.lastEdited);
-                      const pad = (n: number) => String(n).padStart(2, '0');
-                      const tz = editDate.toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || '';
-                      return `Last edited: ${editDate.getFullYear()} - ${pad(editDate.getMonth() + 1)} - ${pad(editDate.getDate())} / ${pad(editDate.getHours())}:${pad(editDate.getMinutes())}:${pad(editDate.getSeconds())} ${tz}`;
+                      const d = new Date(day.lastEdited);
+                      return `Last edited: ${d.toLocaleString()}`;
                     })()}
                   </div>
                 )}
               </div>
 
               {preferences.showSameVehicle && (
-                <div style={{ flex: 1, minWidth: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                <div className="input-group" style={{ flex: 1, minWidth: '100%' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={day.sameVehicle !== false}
@@ -538,12 +478,10 @@ export default function App() {
                     {t('sameVehicle', preferences.language)}
                   </label>
                   {day.sameVehicle === false && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                      <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t('cmvPlate', preferences.language)}</label>
+                    <div className="input-group" style={{ marginTop: '0.5rem' }}>
+                      <label>{t('cmvPlate', preferences.language)}</label>
                       <input
                         type="text"
-                        className="input-group"
-                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                         value={day.cmvPlate || ''}
                         onChange={(e) => updateSelectedDayField(idx, 'cmvPlate', e.target.value)}
                         placeholder="..."
@@ -554,50 +492,51 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t('startOdo', preferences.language)}</label>
-                <input
-                  type="number"
-                  className="input-group"
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                  value={day.startOdometer || ''}
-                  onChange={(e) => updateSelectedDayField(idx, 'startOdometer', e.target.value)}
-                  onBlur={(e) => {
-                    const start = Number(e.target.value);
+              <div className="input-group" style={{ width: '120px' }}>
+                <label>{t('startOdo', preferences.language)}</label>
+                <input 
+                  type="number" 
+                  value={day.startOdometer || ''} 
+                  onChange={e => updateSelectedDayField(idx, 'startOdometer', e.target.value)} 
+                  onBlur={e => {
+                    const s = Number(e.target.value);
                     const end = Number(day.endOdometer);
-                    if (day.endOdometer && end < start) updateSelectedDayField(idx, 'endOdometer', start.toString());
+                    if (day.endOdometer && end < s) updateSelectedDayField(idx, 'endOdometer', s.toString());
                   }}
-                  disabled={day.locked}
+                  disabled={day.locked} 
                 />
               </div>
-              <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t('endOdo', preferences.language)}</label>
-                <input
-                  type="number"
-                  className="input-group"
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                  value={day.endOdometer || ''}
-                  onChange={(e) => updateSelectedDayField(idx, 'endOdometer', e.target.value)}
-                  onBlur={(e) => {
+              <div className="input-group" style={{ width: '120px' }}>
+                <label>{t('endOdo', preferences.language)}</label>
+                <input 
+                  type="number" 
+                  value={day.endOdometer || ''} 
+                  onChange={e => updateSelectedDayField(idx, 'endOdometer', e.target.value)} 
+                  onBlur={e => {
                     const end = Number(e.target.value);
-                    const start = Number(day.startOdometer);
-                    if (day.startOdometer && end < start) updateSelectedDayField(idx, 'endOdometer', start.toString());
+                    const s = Number(day.startOdometer);
+                    if (day.startOdometer && end < s) updateSelectedDayField(idx, 'endOdometer', s.toString());
                   }}
-                  min={day.startOdometer || ''}
-                  disabled={day.locked}
+                  disabled={day.locked} 
                 />
               </div>
             </div>
 
-            <Grid
-              grid={day.grid}
-              setGrid={(newGrid) => updateSelectedDayGrid(idx, newGrid)}
-              preferences={preferences}
-              locked={day.locked}
-              highlightHour={currentHour}
+            <Grid 
+              grid={day.grid} 
+              setGrid={g => updateSelectedDayGrid(idx, g)} 
+              preferences={preferences} 
+              locked={day.locked} 
+              highlightHour={currentHour} 
             />
             <div style={{ marginTop: '1rem' }}>
-              <Totals grid={day.grid} preferences={preferences} startOdometer={day.startOdometer} endOdometer={day.endOdometer} />
+              <Totals 
+                grid={day.grid} 
+                preferences={preferences} 
+                startOdometer={day.startOdometer} 
+                endOdometer={day.endOdometer} 
+                homeTerminalAddress={metadata.homeTerminalAddress}
+              />
             </div>
           </div>
         )}
@@ -608,168 +547,73 @@ export default function App() {
   return (
     <div className="app-container">
       {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
-        <div className="glass-panel no-print" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '1rem',
-          padding: '0.75rem',
-          fontSize: '0.875rem',
-          background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-          borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)',
-          marginTop: '0.5rem',
-          marginBottom: '0.5rem'
-        }}>
-          {!isOnline ? (
-            <><WifiOff size={16} color="var(--accent-red)" /> <span>Working Offline</span></>
-          ) : installPrompt ? (
-            <>
-              <Plus size={16} color="var(--accent-blue)" />
-              <span>Install Synodos Log for the best experience</span>
-              <button className="btn-primary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={handleInstallClick}>
-                Install Now
-              </button>
-            </>
-          ) : !isStandalone && !offlineReady ? (
-            <>
-              <Settings size={16} color="var(--accent-blue)" />
-              <span>To install: Open browser menu & select <b>"Add to Home Screen"</b></span>
-            </>
-          ) : offlineReady ? (
-            <><CloudDownload size={16} color="var(--accent-green)" /> <span>Ready to work offline</span></>
-          ) : needRefresh ? (
-            <>
-              <span>New content available!</span>
-              <button className="btn-primary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={() => updateServiceWorker(true)}>
-                Update
-              </button>
-            </>
-          ) : null}
-          {(offlineReady || needRefresh || installPrompt || !isStandalone) && (
-            <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => {
-              setOfflineReady(false);
-              setNeedRefresh(false);
-              setInstallPrompt(null);
-              if (!isStandalone) {
-                setShowInstallBanner(false);
-                localStorage.setItem('hide-install-banner', 'true');
-              }
-            }}>✕</button>
-          )}
+        <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+          {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : installPrompt ? (<><Plus size={16} /> <span>Install App</span> <button onClick={handleInstallClick}>Install</button></>) : null}
+          <button style={{ background: 'none', border: 'none' }} onClick={() => setShowInstallBanner(false)}>✕</button>
         </div>
       )}
 
-      {view === 'dashboard' ? (
+      {view === 'audit' ? (
+        <AuditView auditLog={auditLog} onBack={() => {
+          if (auditReturnView === 'editor') {
+            const today = format(new Date(), 'yyyy-MM-dd');
+            setCollapsedDays(new Set(days.map(d => d.date).filter(date => date !== today)));
+            setView('editor');
+          } else {
+            setView('dashboard');
+          }
+        }} />
+      ) : view === 'dashboard' ? (
         <>
           <header className="header">
-            <h1>{t('dashboard', preferences.language)}</h1>
+            <h1>Dashboard</h1>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button className="tool-btn" onClick={() => setIsPrefsOpen(true)}>
-                <Settings size={18} />
-              </button>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <input
-                  type="date"
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      // e.target.value is in YYYY-MM-DD format
-                      // Parse it manually to avoid timezone issues
-                      const [year, month, day] = e.target.value.split('-').map(Number);
-                      startNewWeek(new Date(year, month - 1, day));
-                      e.target.value = ''; // Reset so the same date can be selected again
-                    }
-                  }}
-                  style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
-                />
-                <button className="btn-primary" style={{ pointerEvents: 'none' }}>
-                  <Plus size={18} /> {t('newWeek', preferences.language)}
-                </button>
+              <button className="tool-btn" onClick={() => setIsPrefsOpen(true)}><Settings size={18} /></button>
+              <div style={{ position: 'relative' }}>
+                <input type="date" onChange={e => { if (e.target.value) { const [y, m, d] = e.target.value.split('-').map(Number); startNewWeek(new Date(y, m - 1, d)); e.target.value = ''; } }} style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                <button className="btn-primary"><Plus size={18} /> New Week</button>
               </div>
             </div>
           </header>
-
-
           <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', marginTop: '1rem' }}>
-            {savedLogs.length === 0 ? (
-              <div className="glass-panel" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
-                <p style={{ color: 'var(--text-secondary)' }}>{t('noLogs', preferences.language)}</p>
-              </div>
-            ) : (
-              savedLogs.map(log => (
-                <div key={log.id} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <h3 style={{ margin: 0 }}>Week of {log.id}</h3>
-                    <button
-                      className="tool-btn"
-                      style={{ padding: '0.5rem', color: 'var(--accent-green)', margin: '-0.5rem -0.5rem 0 0' }}
-                      onClick={() => handleExportDashboardPDF(log)}
-                      title={t('exportPdf', preferences.language)}
-                    >
-                      <Download size={18} />
-                    </button>
-                  </div>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '-0.5rem' }}>
-                    Driver: {log.metadata.driverName || 'N/A'}<br />
-                    Cycle: {log.metadata.cycle}
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                    <button className="btn-primary" style={{ flex: 1, padding: '0.5rem', justifyContent: 'center' }} onClick={() => handleEditLog(log.id)}>
-                      Edit
-                    </button>
-                    <button className="btn-primary" style={{ background: 'var(--accent-red)', padding: '0.5rem' }} onClick={() => handleDeleteLog(log.id)}>
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
+            {savedLogs.map(l => (
+              <div key={l.id} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><h3>Week of {l.id}</h3><button className="tool-btn" onClick={() => handleExportDashboardPDF(l)}><Download size={18} /></button></div>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
+                  <button className="btn-primary" style={{ flex: 1 }} onClick={() => handleEditLog(l.id)}>Edit</button>
+                  <button className="btn-primary" style={{ flex: 1, background: 'var(--accent-orange)' }} onClick={async () => { 
+                    await handleEditLog(l.id); 
+                    setAuditReturnView('dashboard');
+                    setView('audit'); 
+                  }}>Audit</button>
+                  <button className="btn-primary" style={{ background: 'var(--accent-red)' }} onClick={() => handleDeleteLog(l.id)}><Trash2 size={18} /></button>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </main>
         </>
       ) : (
         <>
           <header className="header no-print">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <button className="tool-btn" onClick={() => setView('dashboard')} style={{ padding: '0.5rem' }}>
-                <ArrowLeft size={20} />
-              </button>
-              <h1>Week of {currentId}</h1>
-            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}><button className="tool-btn" onClick={() => setView('dashboard')}><ArrowLeft size={20} /></button><h1>Week of {currentId}</h1></div>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button className="tool-btn" onClick={() => setIsPrefsOpen(true)}>
-                <Settings size={18} />
-              </button>
-              <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
-                <Save size={18} /> {isSaving ? t('saved', preferences.language) : t('save', preferences.language)}
-              </button>
-              <button className="btn-primary" onClick={handleExportPDF} style={{ background: 'var(--accent-green)' }}>
-                <Download size={18} /> {t('exportPdf', preferences.language)}
-              </button>
+              <button className="tool-btn" onClick={() => setIsPrefsOpen(true)}><Settings size={18} /></button>
+              <button className="btn-primary" onClick={() => handleSave()} disabled={isSaving}><Save size={18} /> {isSaving ? 'Saved' : 'Save'}</button>
+              <button className="btn-primary" onClick={handleExportPDF} style={{ background: 'var(--accent-green)' }}><Download size={18} /> PDF</button>
             </div>
           </header>
-
           <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
             <MetadataForm metadata={metadata} setMetadata={setMetadata} preferences={preferences} />
-
+            
             {preferences.viewMode === 'tabs' ? (
-              <div>
-                <div style={{ display: 'flex', overflowX: 'auto', gap: '0.5rem', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
-                  {days.map((day, idx) => {
-                    const d = parseISO(day.date);
-                    return (
-                      <button
-                        key={day.date}
-                        className={`tool-btn ${selectedDayIndex === idx ? 'active' : ''}`}
-                        onClick={() => setSelectedDayIndex(idx)}
-                        style={{ minWidth: '120px', justifyContent: 'center' }}
-                      >
-                        {format(d, 'EEEE')} {day.locked && <Lock size={12} style={{ marginLeft: '4px' }} />}<br />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 'normal' }}>{format(d, 'MMM d')}</span>
-                      </button>
-                    );
-                  })}
+              <>
+                <div className="no-print" style={{ display: 'flex', overflowX: 'auto', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {days.map((d, i) => (
+                    <button key={d.date} className={`tool-btn ${selectedDayIndex === i ? 'active' : ''}`} onClick={() => setSelectedDayIndex(i)} style={{ minWidth: '100px' }}>{format(parseISO(d.date), 'EEE')}<br/>{format(parseISO(d.date), 'MMM d')}</button>
+                  ))}
                 </div>
                 {days[selectedDayIndex] && renderDayPanel(days[selectedDayIndex], selectedDayIndex)}
-              </div>
+              </>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {days.map((day, idx) => renderDayPanel(day, idx))}
@@ -778,18 +622,19 @@ export default function App() {
           </main>
         </>
       )}
-
-      <PreferencesMenu
-        preferences={preferences}
-        setPreferences={setPreferences}
-        isOpen={isPrefsOpen}
-        onClose={() => setIsPrefsOpen(false)}
-        installPrompt={installPrompt}
-        isStandalone={isStandalone}
-        onInstall={handleInstallClick}
+      <PreferencesMenu 
+        preferences={preferences} 
+        setPreferences={setPreferences} 
+        isOpen={isPrefsOpen} 
+        onClose={() => setIsPrefsOpen(false)} 
         onRoadsidePDF={handleRoadsidePDF}
+        onAuditView={() => { 
+          setAuditReturnView('editor');
+          setView('audit'); 
+          setIsPrefsOpen(false); 
+        }}
       />
-
+      <ReasonModal isOpen={isReasonModalOpen} onSave={r => handleSave(r)} onCancel={() => setIsReasonModalOpen(false)} />
       <footer className="no-print" style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: 'auto' }}>
         Copyright &copy; 2026 SynOdos. All rights reserved.
       </footer>

@@ -28,10 +28,21 @@ export interface DayEntry {
   lastEdited?: string; // ISO timestamp of last edit
 }
 
+export interface AuditEntry {
+  timestamp: string;
+  date?: string; // The date of the log day being edited (if applicable)
+  field: string;
+  originalValue: string;
+  newValue: string;
+  editedBy: string;
+  reason?: string;
+}
+
 export interface WeeklyLog {
   id: string; // The Monday date YYYY-MM-DD
   metadata: WeeklyMetadata;
   days: DayEntry[]; // 7 entries, Monday to Sunday
+  auditLog?: AuditEntry[];
 }
 
 export type PaintMode = Status | 'cycle';

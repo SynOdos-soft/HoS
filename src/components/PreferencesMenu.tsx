@@ -12,9 +12,25 @@ interface PreferencesMenuProps {
   isStandalone?: boolean;
   onInstall?: () => void;
   onRoadsidePDF?: () => void;
+  onAuditView?: () => void;
 }
 
 const VERSIONS = [
+  {
+    version: '0.7.0',
+    date: '2026-05-10',
+    features: [
+      'New Audit Log system for non-repudiation and compliance.',
+      'Side-by-side comparison (diff) for all edited records.',
+      'Mandatory Reason Codes for modifying historical/locked data.',
+      'Visual highlights (red/green) for original vs. new values in Audit View.',
+      'Inspection entry point separate from daily inputs.'
+    ],
+    fixes: [
+      'Hard validation for historical edits to prevent accidental overwrites.',
+      'Improved data integrity for HOS regulatory readiness.'
+    ]
+  },
   {
     version: '0.6.0',
     date: '2026-05-07',
@@ -77,7 +93,7 @@ const VERSIONS = [
 
 export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   preferences, setPreferences, isOpen, onClose,
-  installPrompt, isStandalone, onInstall, onRoadsidePDF
+  installPrompt, isStandalone, onInstall, onRoadsidePDF, onAuditView
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'trucking' | 'install' | 'version'>('general');
 
@@ -184,20 +200,39 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                 <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
 
                 <h3 style={{ margin: 0, color: 'var(--accent-red)' }}>Roadside Inspection</h3>
-                <div
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '1rem',
-                    padding: '1rem', cursor: 'pointer',
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid var(--accent-red)',
-                    borderRadius: '8px',
-                  }}
-                  onClick={() => { if (onRoadsidePDF) { onRoadsidePDF(); onClose(); } }}
-                >
-                  <Shield size={22} color="var(--accent-red)" />
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Export 15-Day PDF</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Generate last 15 days for officer review</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '1rem',
+                      padding: '1rem', cursor: 'pointer',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid var(--accent-red)',
+                      borderRadius: '8px',
+                    }}
+                    onClick={() => { if (onRoadsidePDF) { onRoadsidePDF(); onClose(); } }}
+                  >
+                    <Shield size={22} color="var(--accent-red)" />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Export 15-Day PDF</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Generate last 15 days for officer review</div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '1rem',
+                      padding: '1rem', cursor: 'pointer',
+                      background: 'rgba(245, 158, 11, 0.1)',
+                      border: '1px solid var(--accent-orange)',
+                      borderRadius: '8px',
+                    }}
+                    onClick={() => { if (onAuditView) { onAuditView(); onClose(); } }}
+                  >
+                    <Shield size={22} color="var(--accent-orange)" />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent-orange)' }}>Audit History & Compliance</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>View forensic log of all modifications</div>
+                    </div>
                   </div>
                 </div>
               </div>
