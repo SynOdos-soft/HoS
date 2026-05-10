@@ -418,7 +418,7 @@ export default function App() {
     })();
 
     return (
-      <div key={day.date} className={`glass-panel day-panel no-print ${dayIsToday ? 'day-today' : ''}`} style={{ marginBottom: '1rem', padding: 0, overflow: 'hidden' }}>
+      <div key={day.date} className={`glass-panel day-panel no-print ${dayIsToday ? 'day-today' : ''}`} style={{ marginBottom: '1rem', padding: 0 }}>
         <div className="day-panel-header" onClick={() => toggleDayCollapse(day.date)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: isCollapsed ? 'none' : '1px solid var(--border-color)', background: dayIsToday ? 'rgba(59, 130, 246, 0.08)' : undefined }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1rem' }}>

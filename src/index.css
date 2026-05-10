@@ -554,7 +554,12 @@ body.light-mode .hour-block.hour-highlight {
 
   .grid-container {
     max-height: none;
-    overflow-y: visible;
+    overflow: visible;
+  }
+  
+  .grid-container.locked {
+    pointer-events: none;
+    opacity: 0.7;
   }
 
   .timeline-grid {
@@ -562,7 +567,7 @@ body.light-mode .hour-block.hour-highlight {
     flex-direction: row;
     width: 100%;
     border: 1px solid var(--border-color);
-    overflow: hidden;
+    overflow: visible;
   }
 
   .grid-header-row {
