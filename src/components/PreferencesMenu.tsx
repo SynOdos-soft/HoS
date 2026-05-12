@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Preferences } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, X, Truck, FileText, Download, Info, Shield } from 'lucide-react';
+import { Settings, X, Shield, FileText, Download, Info, Truck } from 'lucide-react';
 
 interface PreferencesMenuProps {
   preferences: Preferences;
@@ -13,9 +13,59 @@ interface PreferencesMenuProps {
   onInstall?: () => void;
   onRoadsidePDF?: () => void;
   onAuditView?: () => void;
+  onExportJSON?: () => void;
+  onImportJSON?: () => void;
+  onClearData?: () => void;
 }
 
 const VERSIONS = [
+  {
+    version: '0.9.5',
+    date: '2026-05-12',
+    features: [
+      'Icon-driven compact totals footer.',
+      'Dashboard current week highlighting.',
+      'New "Show Daily Totals Cards" toggle in settings.',
+      'Optimized HOS limit warnings for single-line display.'
+    ],
+    fixes: [
+      'Fixed state desync in sequential day navigation.',
+      'Resolved duplication issues in render logic.'
+    ]
+  },
+  {
+    version: '0.9.4',
+    date: '2026-05-11',
+    features: [
+      'Focused Daily Architecture: removed collapsible day cards.',
+      'Fixed-bottom dashboard panel with real-time totals.',
+      'Premium glassmorphism dashboard aesthetics.',
+      'Persistent compliance feedback during scrolling.'
+    ],
+    fixes: []
+  },
+  {
+    version: '0.9.0',
+    date: '2026-05-09',
+    features: [
+      'Sequential daily navigation with cross-week capability.',
+      'Automatic background saving during transitions.',
+      'High-visibility current day highlighting.'
+    ],
+    fixes: [
+      'Fixed mobile sticky header z-index issues.'
+    ]
+  },
+  {
+    version: '0.8.5',
+    date: '2026-05-08',
+    features: [
+      'Strict Historical Auto-Locking for regulatory compliance.',
+      'Forensic Audit Log tracking every modification.',
+      'Mandatory reason codes for retrospective edits.'
+    ],
+    fixes: []
+  },
   {
     version: '0.7.0',
     date: '2026-05-10',
@@ -195,6 +245,10 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.showTimestamps} onChange={() => toggleBoolean('showTimestamps')} />
                   {t('showTimestamps', preferences.language) || 'Show Timestamps in Cells'}
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={preferences.showDailyTotals} onChange={() => toggleBoolean('showDailyTotals')} />
+                  Show Daily Totals Cards
                 </label>
 
                 <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />

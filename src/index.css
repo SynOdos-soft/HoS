@@ -426,8 +426,9 @@ h6 {
 /* Totals */
 .totals-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 1rem;
+  width: 100%;
 }
 
 .total-card {
@@ -436,17 +437,67 @@ h6 {
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 0.75rem;
+  transition: all 0.3s ease;
+  border: 1px solid var(--glass-border);
+}
+
+.total-card:hover {
+  transform: translateY(-2px);
+  background: var(--bg-tertiary);
 }
 
 .total-card h3 {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .total-card .value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   font-family: var(--font-heading);
+}
+
+.fixed-totals-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--glass-border);
+  padding: 1rem 2rem;
+  z-index: 100;
+  box-shadow: 0 -10px 25px rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: center;
+}
+
+.fixed-totals-footer .app-container {
+  padding: 0;
+  min-height: auto;
+}
+
+body.has-footer {
+  padding-bottom: 120px;
+}
+
+@media (max-width: 768px) {
+  .fixed-totals-footer {
+    padding: 0.75rem 1rem;
+  }
+  .total-card {
+    padding: 0.5rem;
+  }
+  .total-card .value {
+    font-size: 1rem;
+  }
+  body.has-footer {
+    padding-bottom: 180px;
+  }
 }
 
 .total-card.off-duty .value {

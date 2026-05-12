@@ -56,6 +56,7 @@ export interface Preferences {
   showSleeper: boolean;
   viewMode: 'tabs' | 'stacked';
   autoSave: boolean;
+  showDailyTotals: boolean;
   language: string;
   showTimestamps: boolean;
   showSameVehicle: boolean;
@@ -76,6 +77,7 @@ export const DEFAULT_PREFS: Preferences = {
   showSleeper: false,
   viewMode: 'tabs',
   autoSave: true,
+  showDailyTotals: true,
   language: 'en',
   showTimestamps: true,
   showSameVehicle: true,

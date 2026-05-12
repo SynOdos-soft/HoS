@@ -300,7 +300,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
   doc.setLineDashPattern([1, 1], 0);
   doc.line(margin + 72, y + 1, margin + 120, y + 1);
 
-  doc.text('Date:', margin + 130, y);
+  doc.text('Date: ' + format(exportTime, 'dd-MMM-yyyy'), margin + 130, y);
   doc.line(margin + 138, y + 1, margin + contentWidth, y + 1);
   doc.setLineDashPattern([], 0);
 

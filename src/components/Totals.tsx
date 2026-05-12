@@ -1,7 +1,7 @@
 import React from 'react';
 import { Status, Preferences } from '../types';
 import { t } from '../utils/i18n';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Coffee, Bed, Truck, Briefcase, Route } from 'lucide-react';
 
 interface TotalsProps {
   grid: Status[];
@@ -9,9 +9,10 @@ interface TotalsProps {
   startOdometer?: string;
   endOdometer?: string;
   homeTerminalAddress?: string;
+  variant?: 'grid' | 'compact';
 }
 
-export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer, endOdometer, homeTerminalAddress }) => {
+export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer, endOdometer, homeTerminalAddress, variant = 'grid' }) => {
   const counts = grid.reduce((acc, status) => {
     acc[status] = (acc[status] || 0) + 1;
     return acc;
@@ -20,7 +21,7 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
   const formatHours = (quarters: number) => {
     const hours = Math.floor(quarters / 4);
     const mins = (quarters % 4) * 15;
-    return `${hours}h ${mins > 0 ? `${mins}m` : ''}`;
+    return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`;
   };
 
   const calculateTotalKm = () => {
@@ -36,6 +37,32 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
   const isUsa = homeTerminalAddress?.toUpperCase().includes('USA');
   const limitHours = isUsa ? 11 : 13;
   const isOverLimit = (drivingQuarters / 4) > limitHours;
+
+  if (variant === 'compact') {
+    return (
+      <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'nowrap', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-off-duty)' }}>
+          <Coffee size={14} /> {formatHours(counts['off-duty'] || 0)}
+        </div>
+        {preferences.showSleeper && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-sleeper)' }}>
+            <Bed size={14} /> {formatHours(counts['sleeper'] || 0)}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isOverLimit ? 'var(--accent-red)' : 'var(--status-driving)' }}>
+          <Truck size={14} /> {formatHours(drivingQuarters)}
+          {isOverLimit && <AlertTriangle size={14} style={{ color: 'var(--accent-red)' }} />}
+          {isOverLimit && <span style={{ fontSize: '0.7rem' }}>({limitHours}h)</span>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }}>
+          <Briefcase size={14} /> {formatHours(counts['on-duty'] || 0)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
+          <Route size={14} /> {calculateTotalKm()}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="totals-grid no-print">
