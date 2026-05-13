@@ -419,7 +419,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
           to { opacity: 1; transform: scale(1); }
         }
         .modal-overlay {
-          position: fixed; inset: 0; z-index: 100; 
+          position: fixed; inset: 0; z-index: 4000; 
           background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
           display: flex; justify-content: center; align-items: center; padding: 1rem;
         }

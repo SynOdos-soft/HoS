@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react';
 import { Grid } from './components/Grid';
 import { Totals } from './components/Totals';
 import { MetadataForm } from './components/MetadataForm';
+import { Header } from './components/Header';
 import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS, AuditEntry } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Save, ArrowLeft, Plus, Trash2, Settings, Lock, LockOpen, Copy, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Plus, Trash2, Lock, LockOpen, Copy, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { AuditView } from './components/AuditView';
+import { InspectionView } from './components/InspectionView';
 import { ReasonModal } from './components/ReasonModal';
 
 const DEFAULT_METADATA: WeeklyMetadata = {
@@ -49,7 +50,6 @@ const createEmptyDays = (startDate: Date): DayEntry[] => {
 
 export default function App() {
   const [view, setView] = useState<'dashboard' | 'editor' | 'audit'>('dashboard');
-  const [auditReturnView, setAuditReturnView] = useState<'dashboard' | 'editor'>('dashboard');
   const [savedLogs, setSavedLogs] = useState<WeeklyLog[]>([]);
 
   const [preferences, setPreferences] = useState<Preferences>(() => {
@@ -180,6 +180,39 @@ export default function App() {
     const todayIdx = d.findIndex(x => x.date === todayStr);
     setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
     setView('editor');
+  };
+  const navigateToActiveDaily = async () => {
+    const today = startOfDay(new Date());
+    const monday = startOfWeek(today, { weekStartsOn: 1 });
+    const weekId = format(monday, 'yyyy-MM-dd');
+    const existingLog = await getLog(weekId);
+    
+    if (existingLog) {
+      setCurrentId(existingLog.id);
+      setMetadata(existingLog.metadata);
+      setAuditLog(existingLog.auditLog || []);
+      const d = existingLog.days.map(day => ({ 
+        ...day, 
+        locked: day.locked || isBefore(parseISO(day.date), today) 
+      }));
+      setDays(d);
+      setLastSavedLog({ ...existingLog, days: d });
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const todayIdx = d.findIndex(x => x.date === todayStr);
+      setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
+      setView('editor');
+    } else {
+      startNewWeekWithToday(today);
+      setView('editor');
+    }
+  };
+
+  const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit') => {
+    if (newView === 'editor') {
+      navigateToActiveDaily();
+    } else {
+      setView(newView);
+    }
   };
 
   const handleEditLog = async (id: string) => {
@@ -552,6 +585,16 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <Header 
+        view={view} 
+        onNavigate={handleGlobalNavigate} 
+        onOpenPrefs={() => setIsPrefsOpen(true)} 
+        onSave={() => handleSave()}
+        onExportPDF={handleExportPDF}
+        onNewWeek={startNewWeek}
+        isSaving={isSaving}
+      />
+      
       {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
         <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
           {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : installPrompt ? (<><Plus size={16} /> <span>Install App</span> <button onClick={handleInstallClick}>Install</button></>) : null}
@@ -560,25 +603,9 @@ export default function App() {
       )}
 
       {view === 'audit' ? (
-        <AuditView auditLog={auditLog} onBack={() => {
-          if (auditReturnView === 'editor') {
-            setView('editor');
-          } else {
-            setView('dashboard');
-          }
-        }} />
+        <InspectionView logs={savedLogs} onBack={() => setView('dashboard')} />
       ) : view === 'dashboard' ? (
         <>
-          <header className="header">
-            <h1>Dashboard</h1>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button className="tool-btn" onClick={() => setIsPrefsOpen(true)}><Settings size={18} /></button>
-              <div style={{ position: 'relative' }}>
-                <input type="date" onChange={e => { if (e.target.value) { const [y, m, d] = e.target.value.split('-').map(Number); startNewWeek(new Date(y, m - 1, d)); e.target.value = ''; } }} style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-                <button className="btn-primary"><Plus size={18} /> New Week</button>
-              </div>
-            </div>
-          </header>
           <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', marginTop: '1rem' }}>
             {(() => {
               const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -589,7 +616,6 @@ export default function App() {
                     <button className="btn-primary" style={{ flex: 1 }} onClick={() => handleEditLog(l.id)}>Edit</button>
                     <button className="btn-primary" style={{ flex: 1, background: 'var(--accent-orange)' }} onClick={async () => { 
                       await handleEditLog(l.id); 
-                      setAuditReturnView('dashboard');
                       setView('audit'); 
                     }}>Audit</button>
                     <button className="btn-primary" style={{ background: 'var(--accent-red)' }} onClick={() => handleDeleteLog(l.id)}><Trash2 size={18} /></button>
@@ -601,17 +627,6 @@ export default function App() {
         </>
       ) : (
         <>
-          <header className="header no-print">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <button className="tool-btn" onClick={() => setView('dashboard')}><ArrowLeft size={20} /></button>
-              <h1 style={{ margin: 0, fontSize: '1.2rem' }}>Week of {currentId}</h1>
-            </div>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button className="tool-btn" onClick={() => setIsPrefsOpen(true)}><Settings size={18} /></button>
-              <button className="btn-primary" onClick={() => handleSave()} disabled={isSaving}><Save size={18} /> {isSaving ? 'Saved' : 'Save'}</button>
-              <button className="btn-primary" onClick={handleExportPDF} style={{ background: 'var(--accent-green)' }}><Download size={18} /> PDF</button>
-            </div>
-          </header>
           <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
             <MetadataForm metadata={metadata} setMetadata={setMetadata} preferences={preferences} />
             
@@ -658,13 +673,12 @@ export default function App() {
         onClose={() => setIsPrefsOpen(false)} 
         onRoadsidePDF={handleRoadsidePDF}
         onAuditView={() => { 
-          setAuditReturnView('editor');
           setView('audit'); 
           setIsPrefsOpen(false); 
         }}
       />
       <ReasonModal isOpen={isReasonModalOpen} onSave={r => handleSave(r)} onCancel={() => setIsReasonModalOpen(false)} />
-      <footer className="no-print" style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: 'auto' }}>
+      <footer className="app-footer no-print">
         Copyright &copy; 2026 SynOdos. All rights reserved.
       </footer>
     </div>
