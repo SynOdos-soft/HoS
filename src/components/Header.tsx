@@ -9,10 +9,12 @@ interface HeaderProps {
   onExportPDF?: () => void;
   onNewWeek?: (date: Date) => void;
   isSaving?: boolean;
+  onSavePreset?: () => void;
+  onApplyPreset?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
-  view, onNavigate, onOpenPrefs, onSave, onExportPDF, onNewWeek, isSaving 
+  view, onNavigate, onOpenPrefs, onSave, onExportPDF, onNewWeek, isSaving, onSavePreset, onApplyPreset
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -113,6 +115,12 @@ export const Header: React.FC<HeaderProps> = ({
                   }} 
                 />
               </div>
+              <button className="menu-item" onClick={() => handleAction(onSavePreset)} disabled={view !== 'editor'}>
+                <Save size={20} /> Save Preset
+              </button>
+              <button className="menu-item" onClick={() => handleAction(onApplyPreset)} disabled={view !== 'editor'}>
+                <Download size={20} /> Apply Preset
+              </button>
             </div>
 
             <div className="menu-footer">

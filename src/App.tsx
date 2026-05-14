@@ -7,7 +7,7 @@ import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS, AuditEntry } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Plus, Trash2, Lock, LockOpen, Copy, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -156,7 +156,7 @@ export default function App() {
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
-    
+
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const todayIdx = d.findIndex(x => x.date === todayStr);
     setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
@@ -186,14 +186,14 @@ export default function App() {
     const monday = startOfWeek(today, { weekStartsOn: 1 });
     const weekId = format(monday, 'yyyy-MM-dd');
     const existingLog = await getLog(weekId);
-    
+
     if (existingLog) {
       setCurrentId(existingLog.id);
       setMetadata(existingLog.metadata);
       setAuditLog(existingLog.auditLog || []);
-      const d = existingLog.days.map(day => ({ 
-        ...day, 
-        locked: day.locked || isBefore(parseISO(day.date), today) 
+      const d = existingLog.days.map(day => ({
+        ...day,
+        locked: day.locked || isBefore(parseISO(day.date), today)
       }));
       setDays(d);
       setLastSavedLog({ ...existingLog, days: d });
@@ -215,6 +215,26 @@ export default function App() {
     }
   };
 
+  const handleSavePreset = () => {
+    const preset = {
+      driverName: metadata.driverName,
+      operatorName: metadata.operatorName,
+      operatorBusinessAddress: metadata.operatorBusinessAddress,
+      homeTerminalAddress: metadata.homeTerminalAddress,
+      cmvPlate: metadata.cmvPlate,
+      cycle: metadata.cycle,
+    };
+    localStorage.setItem('hos-metadata-preset', JSON.stringify(preset));
+    alert('Preset saved!');
+  };
+
+  const handleApplyPreset = () => {
+    const raw = localStorage.getItem('hos-metadata-preset');
+    if (!raw) { alert('No preset saved yet.'); return; }
+    const preset = JSON.parse(raw);
+    setMetadata({ ...metadata, ...preset });
+  };
+
   const handleEditLog = async (id: string) => {
     const log = await getLog(id);
     if (log) {
@@ -223,13 +243,13 @@ export default function App() {
       setAuditLog(log.auditLog || []);
       const today = startOfDay(new Date());
       // Auto-lock past days on load to ensure compliance
-      const d = log.days.map(day => ({ 
-        ...day, 
-        locked: day.locked || isBefore(parseISO(day.date), today) 
+      const d = log.days.map(day => ({
+        ...day,
+        locked: day.locked || isBefore(parseISO(day.date), today)
       }));
       setDays(d);
       setLastSavedLog({ ...log, days: d });
-      
+
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayIdx = d.findIndex(x => x.date === todayStr);
       setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
@@ -249,7 +269,7 @@ export default function App() {
         const currentMonday = parseISO(currentId);
         const nextMonday = addDays(currentMonday, 7);
         const nextId = format(nextMonday, 'yyyy-MM-dd');
-        
+
         const existing = await getLog(nextId);
         if (existing) {
           await handleEditLog(nextId);
@@ -290,7 +310,7 @@ export default function App() {
     // Only audit metadata if it's a past week or already locked? 
     // Usually metadata changes are minor, but for safety we only audit if it's not the current week's metadata
     const isCurrentWeek = newLog.id === format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    
+
     if (!isCurrentWeek) {
       Object.keys(newLog.metadata).forEach(k => {
         const key = k as keyof WeeklyMetadata;
@@ -344,14 +364,14 @@ export default function App() {
           return changedRanges.join(', ');
         };
 
-        diffs.push({ 
-          timestamp, 
-          date: day.date, 
-          field: 'Duty Status Grid', 
-          originalValue: `${findChanges()} (Old: ${getSummary(oldDay.grid)})`, 
-          newValue: `Modified (New: ${getSummary(day.grid)})`, 
-          editedBy: 'Driver', 
-          reason 
+        diffs.push({
+          timestamp,
+          date: day.date,
+          field: 'Duty Status Grid',
+          originalValue: `${findChanges()} (Old: ${getSummary(oldDay.grid)})`,
+          newValue: `Modified (New: ${getSummary(day.grid)})`,
+          editedBy: 'Driver',
+          reason
         });
       }
     });
@@ -444,7 +464,7 @@ export default function App() {
   const toggleDayLock = (idx: number) => {
     const day = days[idx];
     const isPastDay = isBefore(parseISO(day.date), startOfDay(new Date()));
-    
+
     if (day.locked) {
       // Trying to UNLOCK
       if (isPastDay) {
@@ -461,12 +481,7 @@ export default function App() {
     });
   };
 
-  const savePreset = (grid: Status[]) => { localStorage.setItem('hos-preset', JSON.stringify(grid)); alert('Preset saved!'); };
-  const loadPreset = (idx: number) => {
-    const p = localStorage.getItem('hos-preset');
-    if (p && !days[idx].locked) updateSelectedDayGrid(idx, JSON.parse(p));
-    else if (!p) alert('No preset.'); else alert('Locked.');
-  };
+
 
   const renderDayPanel = (day: DayEntry, idx: number) => {
     const dayIsToday = isToday(parseISO(day.date));
@@ -475,105 +490,78 @@ export default function App() {
     return (
       <div key={day.date} className={`glass-panel day-panel no-print ${dayIsToday ? 'day-today' : ''}`} style={{ marginBottom: '1rem', padding: '1.5rem', border: dayIsToday ? '2px solid var(--accent-blue)' : undefined }}>
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <button className="tool-btn" onClick={() => savePreset(day.grid)}><Copy size={14} /> {t('savePreset', preferences.language)}</button>
-          <button className="tool-btn" onClick={() => loadPreset(idx)} disabled={day.locked}><Download size={14} /> {t('applyPreset', preferences.language)}</button>
-          
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             {day.lastEdited && (
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 Last Edited: {format(parseISO(day.lastEdited), 'HH:mm:ss')}
               </span>
             )}
             <button className={`tool-btn ${day.locked ? 'active' : ''}`} onClick={() => toggleDayLock(idx)}>
-              {day.locked ? <Lock size={14} style={{ color: 'var(--accent-red)' }} /> : <LockOpen size={14} />} 
+              {day.locked ? <Lock size={14} style={{ color: 'var(--accent-red)' }} /> : <LockOpen size={14} />}
               {day.locked ? t('locked', preferences.language) : t('finishDay', preferences.language)}
             </button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
-          <div className="input-group" style={{ flex: 1, minWidth: '280px' }}>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
+          <div className="input-group" style={{ flex: 1 }}>
             <label>{t('remarks', preferences.language)}</label>
-            <input 
-              type="text" 
-              value={day.remarks || ''} 
-              onChange={e => updateSelectedDayField(idx, 'remarks', e.target.value)} 
-              disabled={day.locked} 
+            <input
+              type="text"
+              value={day.remarks || ''}
+              onChange={e => updateSelectedDayField(idx, 'remarks', e.target.value)}
+              disabled={day.locked}
               placeholder="..."
             />
           </div>
+        </div>
 
-          {preferences.showSameVehicle && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '42px', paddingBottom: '10px' }}>
-              <input 
-                type="checkbox" 
-                id={`same-v-${idx}`}
-                checked={day.sameVehicle !== false} 
-                onChange={e => updateSelectedDayField(idx, 'sameVehicle', e.target.checked)}
-                disabled={day.locked}
-              />
-              <label htmlFor={`same-v-${idx}`} style={{ fontSize: '0.8rem', cursor: 'pointer' }}>Same Vehicle</label>
-            </div>
-          )}
-
-          {(!preferences.showSameVehicle || day.sameVehicle === false) && (
-            <div className="input-group" style={{ width: '120px' }}>
-              <label>CMV Plate</label>
-              <input 
-                type="text" 
-                value={day.cmvPlate || ''} 
-                onChange={e => updateSelectedDayField(idx, 'cmvPlate', e.target.value)} 
-                disabled={day.locked} 
-                placeholder="..."
-              />
-            </div>
-          )}
-
-          <div className="input-group" style={{ width: '120px' }}>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', overflow: 'hidden' }}>
+          <div className="input-group" style={{ flex: 1, minWidth: 0, width: '50%' }}>
             <label>{t('startOdo', preferences.language)}</label>
-            <input 
-              type="number" 
-              value={day.startOdometer || ''} 
-              onChange={e => updateSelectedDayField(idx, 'startOdometer', e.target.value)} 
+            <input
+              type="number"
+              value={day.startOdometer || ''}
+              onChange={e => updateSelectedDayField(idx, 'startOdometer', e.target.value)}
               onBlur={e => {
                 const s = Number(e.target.value);
                 const end = Number(day.endOdometer);
                 if (day.endOdometer && end < s) updateSelectedDayField(idx, 'endOdometer', s.toString());
               }}
-              disabled={day.locked} 
+              disabled={day.locked}
             />
           </div>
-          <div className="input-group" style={{ width: '120px' }}>
+          <div className="input-group" style={{ flex: 1, minWidth: 0, width: '50%' }}>
             <label>{t('endOdo', preferences.language)}</label>
-            <input 
-              type="number" 
-              value={day.endOdometer || ''} 
-              onChange={e => updateSelectedDayField(idx, 'endOdometer', e.target.value)} 
+            <input
+              type="number"
+              value={day.endOdometer || ''}
+              onChange={e => updateSelectedDayField(idx, 'endOdometer', e.target.value)}
               onBlur={e => {
                 const end = Number(e.target.value);
                 const s = Number(day.startOdometer);
                 if (day.startOdometer && end < s) updateSelectedDayField(idx, 'endOdometer', s.toString());
               }}
-              disabled={day.locked} 
+              disabled={day.locked}
             />
           </div>
         </div>
 
-        <Grid 
-          grid={day.grid} 
-          setGrid={g => updateSelectedDayGrid(idx, g)} 
-          preferences={preferences} 
-          locked={day.locked} 
-          highlightHour={currentHour} 
+        <Grid
+          grid={day.grid}
+          setGrid={g => updateSelectedDayGrid(idx, g)}
+          preferences={preferences}
+          locked={day.locked}
+          highlightHour={currentHour}
         />
 
         {preferences.showDailyTotals && (
           <div style={{ marginTop: '1.5rem' }}>
-            <Totals 
-              grid={day.grid} 
-              preferences={preferences} 
-              startOdometer={day.startOdometer} 
-              endOdometer={day.endOdometer} 
+            <Totals
+              grid={day.grid}
+              preferences={preferences}
+              startOdometer={day.startOdometer}
+              endOdometer={day.endOdometer}
               homeTerminalAddress={metadata.homeTerminalAddress}
               variant="grid"
             />
@@ -585,16 +573,18 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <Header 
-        view={view} 
-        onNavigate={handleGlobalNavigate} 
-        onOpenPrefs={() => setIsPrefsOpen(true)} 
+      <Header
+        view={view}
+        onNavigate={handleGlobalNavigate}
+        onOpenPrefs={() => setIsPrefsOpen(true)}
         onSave={() => handleSave()}
         onExportPDF={handleExportPDF}
         onNewWeek={startNewWeek}
         isSaving={isSaving}
+        onSavePreset={handleSavePreset}
+        onApplyPreset={handleApplyPreset}
       />
-      
+
       {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
         <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
           {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : installPrompt ? (<><Plus size={16} /> <span>Install App</span> <button onClick={handleInstallClick}>Install</button></>) : null}
@@ -602,85 +592,88 @@ export default function App() {
         </div>
       )}
 
-      {view === 'audit' ? (
-        <InspectionView logs={savedLogs} onBack={() => setView('dashboard')} />
-      ) : view === 'dashboard' ? (
-        <>
-          <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', marginTop: '1rem' }}>
-            {(() => {
-              const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-              return savedLogs.map(l => (
-                <div key={l.id} className={`glass-panel ${l.id === currentWeekId ? 'day-today' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: l.id === currentWeekId ? '2px solid var(--accent-blue)' : undefined }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><h3>Week of {l.id}</h3><button className="tool-btn" onClick={() => handleExportDashboardPDF(l)}><Download size={18} /></button></div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                    <button className="btn-primary" style={{ flex: 1 }} onClick={() => handleEditLog(l.id)}>Edit</button>
-                    <button className="btn-primary" style={{ flex: 1, background: 'var(--accent-orange)' }} onClick={async () => { 
-                      await handleEditLog(l.id); 
-                      setView('audit'); 
-                    }}>Audit</button>
-                    <button className="btn-primary" style={{ background: 'var(--accent-red)' }} onClick={() => handleDeleteLog(l.id)}><Trash2 size={18} /></button>
+      <div className="main-content">
+        {view === 'audit' ? (
+          <InspectionView logs={savedLogs} onBack={() => setView('dashboard')} />
+        ) : view === 'dashboard' ? (
+          <>
+            <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+              {(() => {
+                const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                return savedLogs.map(l => (
+                  <div key={l.id} className={`glass-panel ${l.id === currentWeekId ? 'day-today' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: l.id === currentWeekId ? '2px solid var(--accent-blue)' : undefined }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><h3>Week of {l.id}</h3><button className="tool-btn" onClick={() => handleExportDashboardPDF(l)}><Download size={18} /></button></div>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
+                      <button className="btn-primary" style={{ flex: 1 }} onClick={() => handleEditLog(l.id)}>Edit</button>
+                      <button className="btn-primary" style={{ flex: 1, background: 'var(--accent-orange)' }} onClick={async () => {
+                        await handleEditLog(l.id);
+                        setView('audit');
+                      }}>Audit</button>
+                      <button className="btn-primary" style={{ background: 'var(--accent-red)' }} onClick={() => handleDeleteLog(l.id)}><Trash2 size={18} /></button>
+                    </div>
                   </div>
+                ));
+              })()}
+            </main>
+          </>
+        ) : (
+          <>
+            <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <MetadataForm metadata={metadata} setMetadata={setMetadata} preferences={preferences} />
+
+              <div className="no-print glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
+                <button className="tool-btn" onClick={() => navigateToDay('prev')} style={{ padding: '0.5rem 1rem' }}>
+                  <ChevronLeft size={24} />
+                </button>
+
+                <div style={{ textAlign: 'center' }}>
+                  <h2 style={{ margin: 0, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {days[selectedDayIndex] && format(parseISO(days[selectedDayIndex].date), 'EEEE, MMMM d')}
+                    {days[selectedDayIndex]?.locked && <Lock size={20} color="#ef4444" />}
+                  </h2>
                 </div>
-              ));
-            })()}
-          </main>
-        </>
-      ) : (
-        <>
-          <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
-            <MetadataForm metadata={metadata} setMetadata={setMetadata} preferences={preferences} />
-            
-            <div className="no-print glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
-              <button className="tool-btn" onClick={() => navigateToDay('prev')} style={{ padding: '0.5rem 1rem' }}>
-                <ChevronLeft size={24} />
-              </button>
-              
-              <div style={{ textAlign: 'center' }}>
-                <h2 style={{ margin: 0, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {days[selectedDayIndex] && format(parseISO(days[selectedDayIndex].date), 'EEEE, MMMM d')}
-                  {days[selectedDayIndex]?.locked && <Lock size={20} color="#ef4444" />}
-                </h2>
+
+                <button className="tool-btn" onClick={() => navigateToDay('next')} style={{ padding: '0.5rem 1rem' }}>
+                  <ChevronRight size={24} />
+                </button>
               </div>
 
-              <button className="tool-btn" onClick={() => navigateToDay('next')} style={{ padding: '0.5rem 1rem' }}>
-                <ChevronRight size={24} />
-              </button>
-            </div>
+              {days[selectedDayIndex] && renderDayPanel(days[selectedDayIndex], selectedDayIndex)}
+            </main>
 
-            {days[selectedDayIndex] && renderDayPanel(days[selectedDayIndex], selectedDayIndex)}
-          </main>
+            {days[selectedDayIndex] && (
+              <footer className="fixed-totals-footer no-print" style={{ padding: '0.75rem 1rem' }}>
+                <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
+                  <Totals
+                    grid={days[selectedDayIndex].grid}
+                    preferences={preferences}
+                    startOdometer={days[selectedDayIndex].startOdometer}
+                    endOdometer={days[selectedDayIndex].endOdometer}
+                    homeTerminalAddress={metadata.homeTerminalAddress}
+                    variant="compact"
+                  />
+                </div>
+              </footer>
+            )}
+          </>
+        )}
 
-          {days[selectedDayIndex] && (
-            <footer className="fixed-totals-footer no-print" style={{ padding: '0.75rem 1rem' }}>
-              <div className="app-container" style={{ width: '100%', maxWidth: '1200px' }}>
-                <Totals 
-                  grid={days[selectedDayIndex].grid} 
-                  preferences={preferences} 
-                  startOdometer={days[selectedDayIndex].startOdometer} 
-                  endOdometer={days[selectedDayIndex].endOdometer} 
-                  homeTerminalAddress={metadata.homeTerminalAddress}
-                  variant="compact"
-                />
-              </div>
-            </footer>
-          )}
-        </>
-      )}
-      <PreferencesMenu 
-        preferences={preferences} 
-        setPreferences={setPreferences} 
-        isOpen={isPrefsOpen} 
-        onClose={() => setIsPrefsOpen(false)} 
+        <footer className="app-footer no-print">
+          Copyright &copy; 2026 SynOdos. All rights reserved.
+        </footer>
+      </div>
+      <PreferencesMenu
+        preferences={preferences}
+        setPreferences={setPreferences}
+        isOpen={isPrefsOpen}
+        onClose={() => setIsPrefsOpen(false)}
         onRoadsidePDF={handleRoadsidePDF}
-        onAuditView={() => { 
-          setView('audit'); 
-          setIsPrefsOpen(false); 
+        onAuditView={() => {
+          setView('audit');
+          setIsPrefsOpen(false);
         }}
       />
       <ReasonModal isOpen={isReasonModalOpen} onSave={r => handleSave(r)} onCancel={() => setIsReasonModalOpen(false)} />
-      <footer className="app-footer no-print">
-        Copyright &copy; 2026 SynOdos. All rights reserved.
-      </footer>
     </div>
   );
 }
