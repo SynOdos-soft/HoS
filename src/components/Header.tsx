@@ -13,7 +13,7 @@ interface HeaderProps {
   onApplyPreset?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
+export const Header: React.FC<HeaderProps> = ({
   view, onNavigate, onOpenPrefs, onSave, onExportPDF, onNewWeek, isSaving, onSavePreset, onApplyPreset
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
     switch (view) {
       case 'dashboard': return 'Dashboard';
       case 'editor': return 'Daily Logger';
-      case 'audit': return 'Audit Trail';
+      case 'audit': return 'Inspection';
       default: return 'SynOdos HOS';
     }
   };
@@ -103,16 +103,16 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="menu-item date-input-item">
                 <Plus size={20} />
                 <span>Create New Week</span>
-                <input 
-                  type="date" 
-                  onChange={e => { 
-                    if (e.target.value && onNewWeek) { 
-                      const [y, m, d] = e.target.value.split('-').map(Number); 
+                <input
+                  type="date"
+                  onChange={e => {
+                    if (e.target.value && onNewWeek) {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
                       onNewWeek(new Date(y, m - 1, d));
                       setIsMenuOpen(false);
-                      e.target.value = ''; 
-                    } 
-                  }} 
+                      e.target.value = '';
+                    }
+                  }}
                 />
               </div>
               <button className="menu-item" onClick={() => handleAction(onSavePreset)} disabled={view !== 'editor'}>

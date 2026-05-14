@@ -20,6 +20,20 @@ interface PreferencesMenuProps {
 
 const VERSIONS = [
   {
+    version: '0.9.6',
+    date: '2026-05-14',
+    features: [
+      'New Roadside Inspection mode with 15-day compliance grid.',
+      'SVG Graphical LogGrid with continuous duty status lines.',
+      'Forensic Audit Trail with field-level diffs and justifications.',
+      'Optimized mobile layout for inspection cards and audit tables.'
+    ],
+    fixes: [
+      'Fixed horizontal overflow issues on narrow viewports.',
+      'Improved touch-scrolling physics for large data grids.'
+    ]
+  },
+  {
     version: '0.9.5',
     date: '2026-05-12',
     features: [

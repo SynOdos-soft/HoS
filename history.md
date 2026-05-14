@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.6] - 2026-05-14
+### Added
+- **Roadside Inspection Mode**: A dedicated 15-day compliance view for rapid regulatory review.
+- **Graphical LogGrid**: High-fidelity, PDF-style duty status graph with continuous lines, hour labels, and minute ticks (:15, :30, :45).
+- **Forensic Audit Trail**: Comprehensive modification log capturing field-level diffs and justifications for all historical edits.
+- **Live Time Marker**: Red vertical indicator on the graphical log showing the exact current time.
+
+### Improved
+- **Mobile UI**: Overhauled the inspection cards and grid for a perfect fit on small screens with no horizontal overflow.
+- **Sticky Labels**: Implemented a persistent sidebar for duty status labels during horizontal grid scrolling.
+- **Visual Polish**: Added premium "TODAY" pill badges, status-specific icons for totals, and structured metadata boxes.
+- **Distance Tracking**: Automatically calculates and displays total KM (odometer difference) in the daily totals row.
+
+### Fixed
+- Fixed horizontal scrolling physics for the graphical log and audit table on mobile devices.
+- Resolved layout bleeding issues on narrow viewports by enforcing strict container constraints.
+
 ## [0.4.0] - 2026-04-26
 ### Added
 - Vertical layout for the logging grid on mobile devices to save space.

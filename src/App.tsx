@@ -249,6 +249,9 @@ export default function App() {
       }));
       setDays(d);
       setLastSavedLog({ ...log, days: d });
+      
+      // Update savedLogs to ensure we have the latest version in the list
+      setSavedLogs(prev => prev.map(l => l.id === log.id ? log : l));
 
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayIdx = d.findIndex(x => x.date === todayStr);
@@ -390,8 +393,20 @@ export default function App() {
     if (lastSavedLog) newAudit = [...auditLog, ...getAuditDiffs(lastSavedLog, { id: currentId, metadata, days }, reason)];
     const log = { id: currentId, metadata, days, auditLog: newAudit };
     await saveLog(log);
+    
+    // Update local state immediately so other views (like Audit/Inspection) see it
     setAuditLog(newAudit);
     setLastSavedLog(log);
+    setSavedLogs(prev => {
+      const idx = prev.findIndex(l => l.id === log.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = log;
+        return next;
+      }
+      return [log, ...prev].sort((a, b) => b.id.localeCompare(a.id));
+    });
+
     setIsReasonModalOpen(false);
     setTimeout(() => setIsSaving(false), 500);
   };
@@ -594,7 +609,7 @@ export default function App() {
 
       <div className="main-content">
         {view === 'audit' ? (
-          <InspectionView logs={savedLogs} onBack={() => setView('dashboard')} />
+          <InspectionView logs={savedLogs} preferences={preferences} />
         ) : view === 'dashboard' ? (
           <>
             <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>

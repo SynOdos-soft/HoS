@@ -1,25 +1,31 @@
 import React from 'react';
-import { WeeklyLog, DayEntry } from '../types';
-import { ArrowLeft, Shield, Calendar, Clock, MapPin, CheckCircle2 } from 'lucide-react';
-import { format, subDays } from 'date-fns';
+import { WeeklyLog, DayEntry, AuditEntry, Preferences } from '../types';
+import { FileText, User, Coffee, Bed, Truck, Briefcase, Route } from 'lucide-react';
+import { format, subDays, parseISO } from 'date-fns';
+import { LogGrid } from './LogGrid';
 
 interface InspectionViewProps {
   logs: WeeklyLog[];
-  onBack: () => void;
+  preferences: Preferences;
 }
 
-export const InspectionView: React.FC<InspectionViewProps> = ({ logs, onBack }) => {
-  // Generate the last 15 days (today + 14 days)
+export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preferences }) => {
   const today = new Date();
   const last15Days = Array.from({ length: 15 }).map((_, i) => subDays(today, i));
 
-  // Flatten all days from all logs into a map for quick lookup
   const dayMap = new Map<string, DayEntry>();
   logs.forEach(log => {
     log.days.forEach(day => {
       dayMap.set(day.date, day);
     });
   });
+
+  // Collect ALL audit entries from all logs, newest first
+  const allAuditEntries: AuditEntry[] = [];
+  logs.forEach(log => {
+    if (log.auditLog) allAuditEntries.push(...log.auditLog);
+  });
+  allAuditEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   const calculateTotals = (grid: string[]) => {
     const totals = { 'off-duty': 0, 'sleeper': 0, 'driving': 0, 'on-duty': 0 };
@@ -31,27 +37,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, onBack }) 
 
   return (
     <div className="inspection-view-container">
-      <header className="no-print" style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button className="tool-btn" onClick={onBack} style={{ padding: '0.6rem' }}>
-            <ArrowLeft size={24} />
-          </button>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <Shield size={32} color="var(--accent-blue)" />
-              Roadside Inspection Mode
-            </h1>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Official HOS Compliance Record • Last 15 Days (14+1)
-            </p>
-          </div>
-        </div>
-        <div className="inspection-status">
-          <CheckCircle2 size={16} color="var(--accent-green)" />
-          <span>Active Compliance</span>
-        </div>
-      </header>
-
+      {/* 15-day status grid */}
       <div className="inspection-grid">
         {last15Days.map((date, idx) => {
           const dateStr = format(date, 'yyyy-MM-dd');
@@ -62,49 +48,78 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, onBack }) 
             <div key={dateStr} className="inspection-card glass-panel" style={{ animationDelay: `${idx * 0.05}s` }}>
               <div className="card-header">
                 <div className="date-badge">
-                  <Calendar size={14} />
-                  <span>{format(date, 'EEE, MMM d')}</span>
+                  <span>{format(date, 'EEEE, MMM d')}</span>
                 </div>
-                {idx === 0 && <span className="today-label">TODAY</span>}
+                {idx === 0 && <span className="today-pill">TODAY</span>}
               </div>
 
               {day ? (
                 <div className="card-body">
-                  <div className="mini-totals">
-                    <div className="total-item">
-                      <label>OFF</label>
-                      <span>{totals?.['off-duty'].toFixed(2)}h</span>
+                  <div className="mini-totals-compact" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.75rem', 
+                    flexWrap: 'nowrap', 
+                    fontSize: '0.85rem', 
+                    fontWeight: 700, 
+                    whiteSpace: 'nowrap', 
+                    overflow: 'hidden',
+                    marginBottom: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-off-duty)' }}>
+                      <Coffee size={14} /> {Math.floor(totals?.['off-duty'] || 0)}h{Math.round(((totals?.['off-duty'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['off-duty'] || 0) % 1) * 60)}m` : ''}
                     </div>
-                    <div className="total-item highlight">
-                      <label>DRV</label>
-                      <span>{totals?.['driving'].toFixed(2)}h</span>
-                    </div>
-                    <div className="total-item">
-                      <label>ON</label>
-                      <span>{totals?.['on-duty'].toFixed(2)}h</span>
-                    </div>
-                    <div className="total-item">
-                      <label>SLP</label>
-                      <span>{totals?.['sleeper'].toFixed(2)}h</span>
-                    </div>
-                  </div>
-                  
-                  <div className="card-meta">
-                    <div className="meta-item">
-                      <Clock size={12} />
-                      <span>Odo: {day.startOdometer || '--'} - {day.endOdometer || '--'}</span>
-                    </div>
-                    {day.remarks && (
-                      <div className="meta-item remarks">
-                        <MapPin size={12} />
-                        <span>{day.remarks}</span>
+                    {preferences.showSleeper && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-sleeper)' }}>
+                        <Bed size={14} /> {Math.floor(totals?.['sleeper'] || 0)}h{Math.round(((totals?.['sleeper'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['sleeper'] || 0) % 1) * 60)}m` : ''}
                       </div>
                     )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-blue)' }}>
+                      <Truck size={14} /> {Math.floor(totals?.['driving'] || 0)}h{Math.round(((totals?.['driving'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['driving'] || 0) % 1) * 60)}m` : ''}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }}>
+                      <Briefcase size={14} /> {Math.floor(totals?.['on-duty'] || 0)}h{Math.round(((totals?.['on-duty'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['on-duty'] || 0) % 1) * 60)}m` : ''}
+                    </div>
+                    {day.startOdometer && day.endOdometer && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
+                        <Route size={14} /> {(parseFloat(day.endOdometer) - parseFloat(day.startOdometer)).toFixed(1)}km
+                      </div>
+                    )}
+                  </div>
+                  
+                  {(day.startOdometer || day.endOdometer || day.remarks) && (
+                    <div className="card-metadata-box">
+                      {day.remarks && (
+                        <div className="metadata-row">
+                          <div className="metadata-tag">REMARKS</div>
+                          <div className="metadata-value italic">
+                            <span>{day.remarks}</span>
+                          </div>
+                        </div>
+                      )}
+                      {(day.startOdometer || day.endOdometer) && (
+                        <div className="metadata-row">
+                          <div className="metadata-tag">ODOMETER</div>
+                          <div className="metadata-value">
+                            <span>{day.startOdometer || '--'} → {day.endOdometer || '--'}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="card-grid-scroll" style={{ marginTop: '1rem', width: '100%' }}>
+                    <LogGrid 
+                      grid={day.grid} 
+                      preferences={preferences} 
+                      date={day.date}
+                    />
                   </div>
                 </div>
               ) : (
                 <div className="card-empty">
-                  <p>No log data available</p>
+                  <p>No log data</p>
                 </div>
               )}
             </div>
@@ -112,145 +127,73 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, onBack }) 
         })}
       </div>
 
-      <style>{`
-        .inspection-view-container {
-          max-width: 1200px;
-          margin: 0 auto;
-          animation: fadeIn 0.4s ease-out;
-        }
+      {/* Audit Trail Section */}
+      <div className="audit-trail-section" style={{ marginTop: '3rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <FileText size={22} color="var(--accent-orange)" />
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Audit Trail</h2>
+          </div>
+        </div>
 
-        .inspection-status {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          background: rgba(34, 197, 94, 0.1);
-          color: var(--accent-green);
-          padding: 0.5rem 1rem;
-          border-radius: 100px;
-          font-weight: 700;
-          font-size: 0.85rem;
-          border: 1px solid rgba(34, 197, 94, 0.2);
-        }
+        {allAuditEntries.length === 0 ? (
+          <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
+            <FileText size={40} style={{ marginBottom: '0.75rem' }} />
+            <p>No audit entries found. All records are original.</p>
+          </div>
+        ) : (
+          <div className="glass-panel" style={{ padding: 0 }}>
+            <div className="audit-table-wrapper" style={{ 
+              overflowX: 'auto', 
+              WebkitOverflowScrolling: 'touch',
+              display: 'block'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--glass-border)' }}>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>Timestamp</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>Log Date</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>Field</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '250px', color: 'var(--text-secondary)', fontWeight: 600 }}>Change</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '200px', color: 'var(--text-secondary)', fontWeight: 600 }}>Justification</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allAuditEntries.map((entry, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--glass-border)', background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.1)' }}>
+                      <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 600 }}>{format(parseISO(entry.timestamp), 'MMM d, yyyy')}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{format(parseISO(entry.timestamp), 'HH:mm:ss')}</div>
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        {entry.date || '—'}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--accent-blue)' }}>
+                        {entry.field}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}>
+                        <div style={{ fontSize: '0.75rem' }}>
+                          <span style={{ color: 'var(--accent-red)', textDecoration: 'line-through', marginRight: '0.5rem' }}>{entry.originalValue}</span>
+                          <span style={{ color: 'var(--accent-green)' }}>→ {entry.newValue}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <User size={12} color="var(--text-secondary)" />
+                          <span style={{ fontStyle: 'italic', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                            {entry.reason || 'No justification provided'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
-        .inspection-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 1.25rem;
-          padding-bottom: 3rem;
-        }
-
-        .inspection-card {
-          padding: 1.25rem;
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          transition: transform 0.2s, box-shadow 0.2s;
-          border: 1px solid var(--glass-border);
-          animation: slideUp 0.4s ease-out both;
-        }
-
-        .inspection-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-          border-color: var(--accent-blue);
-        }
-
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .date-badge {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-weight: 700;
-          color: var(--text-primary);
-          font-size: 1rem;
-        }
-
-        .today-label {
-          background: var(--accent-blue);
-          color: white;
-          padding: 2px 8px;
-          border-radius: 4px;
-          font-size: 0.7rem;
-          font-weight: 800;
-          letter-spacing: 0.05em;
-        }
-
-        .mini-totals {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 0.5rem;
-          background: rgba(0,0,0,0.2);
-          padding: 0.75rem;
-          border-radius: 8px;
-          margin-bottom: 0.75rem;
-        }
-
-        .total-item {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.2rem;
-        }
-
-        .total-item label {
-          font-size: 0.65rem;
-          color: var(--text-secondary);
-          font-weight: 600;
-        }
-
-        .total-item span {
-          font-size: 0.85rem;
-          font-weight: 700;
-        }
-
-        .total-item.highlight span {
-          color: var(--accent-blue);
-        }
-
-        .card-meta {
-          display: flex;
-          flex-direction: column;
-          gap: 0.4rem;
-        }
-
-        .meta-item {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-        }
-
-        .meta-item.remarks {
-          padding: 0.4rem;
-          background: rgba(255,255,255,0.03);
-          border-radius: 4px;
-          border-left: 2px solid var(--accent-blue);
-        }
-
-        .card-empty {
-          height: 100px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--text-secondary);
-          font-style: italic;
-          font-size: 0.85rem;
-          background: rgba(255,255,255,0.02);
-          border-radius: 8px;
-          border: 1px dashed var(--glass-border);
-        }
-
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 };
