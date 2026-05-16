@@ -4,10 +4,12 @@ import { Shield } from 'lucide-react';
 interface ReasonModalProps {
   isOpen: boolean;
   onSave: (reason: string) => void;
+  onDiscard?: () => void;
   onCancel: () => void;
+  isNavigating?: boolean;
 }
 
-export const ReasonModal: React.FC<ReasonModalProps> = ({ isOpen, onSave, onCancel }) => {
+export const ReasonModal: React.FC<ReasonModalProps> = ({ isOpen, onSave, onDiscard, onCancel, isNavigating }) => {
   const [reason, setReason] = useState('');
 
   if (!isOpen) return null;
@@ -23,79 +25,117 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({ isOpen, onSave, onCanc
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 2000,
+      zIndex: 3000,
       backdropFilter: 'blur(4px)',
     }}>
       <div className="glass-panel" style={{
         width: '100%',
-        maxWidth: '450px',
+        maxWidth: '500px',
         padding: '2rem',
         display: 'flex',
         flexDirection: 'column',
         gap: '1.5rem',
-        border: '1px solid var(--accent-red)',
-        boxShadow: '0 0 40px rgba(239, 68, 68, 0.2)',
+        border: '1px solid var(--glass-border)',
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ 
             width: '64px', 
             height: '64px', 
             borderRadius: '50%', 
-            background: 'rgba(239, 68, 68, 0.1)', 
+            background: 'var(--bg-tertiary)', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
             margin: '0 auto 1rem auto',
-            border: '2px solid var(--accent-red)'
+            border: '2px solid var(--glass-border)'
           }}>
-            <Shield size={32} color="var(--accent-red)" />
+            <Shield size={32} color="var(--text-secondary)" />
           </div>
-          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', color: 'var(--accent-red)' }}>Reason for Edit</h2>
+          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}>
+            {isNavigating ? 'Unsaved Changes' : 'Reason for Edit'}
+          </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            Historical or locked data is being modified. A justification is required for the audit log.
+            {isNavigating 
+              ? 'You have modified a locked day. Please provide a reason to save or discard changes.' 
+              : 'Historical or locked data is being modified. A justification is required for the audit log.'}
           </p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Justification / Reason Code</label>
+          <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Justification / Reason Code</label>
           <textarea
             autoFocus
             style={{
               width: '100%',
-              minHeight: '120px',
+              minHeight: '100px',
               padding: '1rem',
               borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-primary)',
+              border: '1px solid var(--glass-border)',
+              background: 'rgba(0,0,0,0.2)',
               color: 'var(--text-primary)',
               fontFamily: 'inherit',
               resize: 'none',
               outline: 'none',
+              fontSize: '0.9rem'
             }}
-            placeholder="e.g., Corrected duty status mismatch from dispatch records, Odometer typo correction..."
+            placeholder="e.g., Corrected duty status mismatch from dispatch records..."
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <button 
             className="btn-primary" 
-            style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)' }}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button 
-            className="btn-primary" 
-            style={{ flex: 1, background: 'var(--accent-red)' }}
+            style={{ 
+              width: '100%', 
+              justifyContent: 'center',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)'
+            }}
             disabled={!reason.trim()}
             onClick={() => {
               onSave(reason);
               setReason('');
             }}
           >
-            Confirm & Save
+            {isNavigating ? 'Save & Navigate' : 'Confirm & Save'}
+          </button>
+          
+          {onDiscard && (
+            <button 
+              className="btn-primary" 
+              style={{ 
+                width: '100%', 
+                justifyContent: 'center',
+                background: 'transparent',
+                border: '1px solid var(--glass-border)',
+                color: 'var(--text-secondary)'
+              }}
+              onClick={() => {
+                onDiscard();
+                setReason('');
+              }}
+            >
+              Discard Changes
+            </button>
+          )}
+
+          <button 
+            style={{ 
+              width: '100%', 
+              background: 'none',
+              border: 'none',
+              color: 'var(--accent-blue)',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginTop: '0.25rem'
+            }}
+            onClick={onCancel}
+          >
+            Cancel
           </button>
         </div>
       </div>

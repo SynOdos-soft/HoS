@@ -20,6 +20,20 @@ interface PreferencesMenuProps {
 
 const VERSIONS = [
   {
+    version: '0.9.7',
+    date: '2026-05-16',
+    features: [
+      'New 2-step deletion workflow with 5-second safety timeout.',
+      'Unified Compliance Modal combining justification and navigation safety.',
+      'Custom Unlock Confirmation modal for historical records.',
+      'Refined Dashboard layout with prioritized action hierarchy.'
+    ],
+    fixes: [
+      'Removed redundant buttons and improved mobile button spacing.',
+      'Neutralized modal styling for a more professional compliance experience.'
+    ]
+  },
+  {
     version: '0.9.6',
     date: '2026-05-14',
     features: [

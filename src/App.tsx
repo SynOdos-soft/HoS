@@ -13,6 +13,7 @@ import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { InspectionView } from './components/InspectionView';
 import { ReasonModal } from './components/ReasonModal';
+import { UnlockConfirmModal } from './components/UnlockConfirmModal';
 
 const DEFAULT_METADATA: WeeklyMetadata = {
   homeTerminalAddress: '',
@@ -74,6 +75,11 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(() => {
     return localStorage.getItem('hide-install-banner') !== 'true';
   });
+  const [deleteStatuses, setDeleteStatuses] = useState<Record<string, 'idle' | 'loading' | 'confirm'>>({});
+  const [pendingNav, setPendingNav] = useState<{ type: 'day' | 'view' | 'active', value: any } | null>(null);
+  const [pendingReasonAction, setPendingReasonAction] = useState<(() => void) | null>(null);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [pendingUnlockIdx, setPendingUnlockIdx] = useState<number | null>(null);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
@@ -207,7 +213,24 @@ export default function App() {
     }
   };
 
+  const hasUnsavedLockedChanges = () => {
+    if (!lastSavedLog) return false;
+    const today = startOfDay(new Date());
+    return days.some((d, i) => {
+      const old = lastSavedLog.days[i];
+      if (!old) return false;
+      const isHistorical = isBefore(parseISO(d.date), today) || old.locked;
+      return isHistorical && JSON.stringify(d) !== JSON.stringify(old);
+    });
+  };
+
   const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit') => {
+    if (hasUnsavedLockedChanges()) {
+      setPendingNav({ type: 'view', value: newView });
+      setIsReasonModalOpen(true);
+      return;
+    }
+
     if (newView === 'editor') {
       navigateToActiveDaily();
     } else {
@@ -261,7 +284,13 @@ export default function App() {
   };
 
   const navigateToDay = async (direction: 'prev' | 'next') => {
-    // 1. Auto-save current state
+    if (hasUnsavedLockedChanges()) {
+      setPendingNav({ type: 'day', value: direction });
+      setIsReasonModalOpen(true);
+      return;
+    }
+    
+    // Auto-save current state for non-locked changes
     await handleSave();
 
     if (direction === 'next') {
@@ -302,7 +331,29 @@ export default function App() {
   };
 
   const handleDeleteLog = async (id: string) => {
-    if (window.confirm('Delete this log?')) { await deleteLog(id); loadDashboard(); }
+    if (deleteStatuses[id] === 'confirm') {
+      await deleteLog(id);
+      loadDashboard();
+      const newStatuses = { ...deleteStatuses };
+      delete newStatuses[id];
+      setDeleteStatuses(newStatuses);
+    } else {
+      setDeleteStatuses(prev => ({ ...prev, [id]: 'loading' }));
+      setTimeout(() => {
+        setDeleteStatuses(prev => ({ ...prev, [id]: 'confirm' }));
+        // Auto-reset after 5 seconds of inactivity in confirm state
+        setTimeout(() => {
+          setDeleteStatuses(prev => {
+            if (prev[id] === 'confirm') {
+              const next = { ...prev };
+              delete next[id];
+              return next;
+            }
+            return prev;
+          });
+        }, 5000);
+      }, 1000);
+    }
   };
 
   const getAuditDiffs = (oldLog: WeeklyLog, newLog: WeeklyLog, reason: string): AuditEntry[] => {
@@ -381,20 +432,23 @@ export default function App() {
     return diffs;
   };
 
-  const handleSave = async (reason: string = '') => {
+  const handleSave = async (reason: string = '', afterAction?: () => void) => {
     const today = startOfDay(new Date());
     const needsReason = days.some((d, i) => {
       const old = lastSavedLog?.days[i];
       return old && (isBefore(parseISO(d.date), today) || old.locked) && JSON.stringify(d) !== JSON.stringify(old);
     });
-    if (needsReason && !reason) { setIsReasonModalOpen(true); return; }
+    if (needsReason && !reason) { 
+      setIsReasonModalOpen(true); 
+      if (afterAction) setPendingReasonAction(() => afterAction);
+      return; 
+    }
     setIsSaving(true);
     let newAudit = auditLog;
     if (lastSavedLog) newAudit = [...auditLog, ...getAuditDiffs(lastSavedLog, { id: currentId, metadata, days }, reason)];
     const log = { id: currentId, metadata, days, auditLog: newAudit };
     await saveLog(log);
     
-    // Update local state immediately so other views (like Audit/Inspection) see it
     setAuditLog(newAudit);
     setLastSavedLog(log);
     setSavedLogs(prev => {
@@ -409,6 +463,60 @@ export default function App() {
 
     setIsReasonModalOpen(false);
     setTimeout(() => setIsSaving(false), 500);
+
+    if (afterAction) afterAction();
+    else if (pendingReasonAction) {
+      pendingReasonAction();
+      setPendingReasonAction(null);
+    }
+  };
+
+  const handleDiscardAndNavigate = () => {
+    if (lastSavedLog) {
+      setDays(lastSavedLog.days);
+      setMetadata(lastSavedLog.metadata);
+      setAuditLog(lastSavedLog.auditLog || []);
+    }
+    setIsReasonModalOpen(false);
+    const nav = pendingNav;
+    setPendingNav(null);
+    if (nav) {
+      if (nav.type === 'day') executeDayNav(nav.value);
+      else if (nav.type === 'view') executeViewNav(nav.value);
+    }
+  };
+
+  const executeDayNav = (direction: 'prev' | 'next') => {
+    if (direction === 'next') {
+      if (selectedDayIndex < 6) setSelectedDayIndex(selectedDayIndex + 1);
+      else {
+        const currentMonday = parseISO(currentId);
+        const nextMonday = addDays(currentMonday, 7);
+        const nextId = format(nextMonday, 'yyyy-MM-dd');
+        getLog(nextId).then(existing => {
+          if (existing) handleEditLog(nextId);
+          else startNewWeek(nextMonday);
+          setSelectedDayIndex(0);
+        });
+      }
+    } else {
+      if (selectedDayIndex > 0) setSelectedDayIndex(selectedDayIndex - 1);
+      else {
+        const currentMonday = parseISO(currentId);
+        const prevMonday = subDays(currentMonday, 7);
+        const prevId = format(prevMonday, 'yyyy-MM-dd');
+        getLog(prevId).then(existing => {
+          if (existing) handleEditLog(prevId);
+          else startNewWeek(prevMonday);
+          setSelectedDayIndex(6);
+        });
+      }
+    }
+  };
+
+  const executeViewNav = (newView: any) => {
+    if (newView === 'editor') navigateToActiveDaily();
+    else setView(newView);
   };
 
   const handleExportPDF = () => generatePDF({ id: currentId, metadata, days }, preferences);
@@ -480,15 +588,16 @@ export default function App() {
     const day = days[idx];
     const isPastDay = isBefore(parseISO(day.date), startOfDay(new Date()));
 
-    if (day.locked) {
-      // Trying to UNLOCK
-      if (isPastDay) {
-        if (!window.confirm('WARNING: Unlocking a past day for editing will be recorded in the Audit Log for compliance. Continue?')) {
-          return;
-        }
-      }
+    if (day.locked && isPastDay) {
+      setPendingUnlockIdx(idx);
+      setIsUnlockModalOpen(true);
+      return;
     }
 
+    executeToggleLock(idx);
+  };
+
+  const executeToggleLock = (idx: number) => {
     setDays(prev => {
       const u = [...prev];
       u[idx] = { ...u[idx], locked: !u[idx].locked };
@@ -615,19 +724,53 @@ export default function App() {
             <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
               {(() => {
                 const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-                return savedLogs.map(l => (
-                  <div key={l.id} className={`glass-panel ${l.id === currentWeekId ? 'day-today' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: l.id === currentWeekId ? '2px solid var(--accent-blue)' : undefined }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><h3>Week of {l.id}</h3><button className="tool-btn" onClick={() => handleExportDashboardPDF(l)}><Download size={18} /></button></div>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                      <button className="btn-primary" style={{ flex: 1 }} onClick={() => handleEditLog(l.id)}>Edit</button>
-                      <button className="btn-primary" style={{ flex: 1, background: 'var(--accent-orange)' }} onClick={async () => {
-                        await handleEditLog(l.id);
-                        setView('audit');
-                      }}>Audit</button>
-                      <button className="btn-primary" style={{ background: 'var(--accent-red)' }} onClick={() => handleDeleteLog(l.id)}><Trash2 size={18} /></button>
+                return savedLogs.map(l => {
+                  const isCurrent = l.id === currentWeekId;
+                  const delStatus = deleteStatuses[l.id] || 'idle';
+                  
+                  return (
+                    <div key={l.id} className={`glass-panel ${isCurrent ? 'day-today' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: isCurrent ? '2px solid var(--accent-blue)' : undefined }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <h3 style={{ margin: 0 }}>Week of {l.id}</h3>
+                          {isCurrent && <span className="today-pill" style={{ position: 'static', padding: '2px 8px', fontSize: '0.6rem' }}>CURRENT</span>}
+                        </div>
+                        
+                        <button 
+                          className="tool-btn" 
+                          style={{ 
+                            padding: '0.4rem',
+                            background: delStatus === 'confirm' ? 'var(--accent-red)' : 'transparent',
+                            color: delStatus === 'confirm' ? 'white' : 'var(--accent-red)',
+                            border: delStatus === 'confirm' ? 'none' : '1px solid rgba(239, 68, 68, 0.2)',
+                            minWidth: delStatus === 'confirm' ? '80px' : '36px',
+                            transition: 'all 0.2s ease',
+                            borderRadius: '8px'
+                          }} 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteLog(l.id); }}
+                          disabled={delStatus === 'loading'}
+                        >
+                          {delStatus === 'loading' ? (
+                            <div className="loading-spinner-small" style={{ width: '14px', height: '14px' }} />
+                          ) : delStatus === 'confirm' ? (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>Confirm</span>
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
+                        <button className="btn-primary" style={{ flex: 1.5 }} onClick={() => handleEditLog(l.id)}>
+                          {isCurrent ? 'Edit' : 'View'}
+                        </button>
+                        
+                        <button className="btn-primary" style={{ flex: 1, background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)' }} onClick={() => handleExportDashboardPDF(l)}>
+                          <Download size={18} /> PDF
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </main>
           </>
@@ -688,7 +831,38 @@ export default function App() {
           setIsPrefsOpen(false);
         }}
       />
-      <ReasonModal isOpen={isReasonModalOpen} onSave={r => handleSave(r)} onCancel={() => setIsReasonModalOpen(false)} />
+      <ReasonModal 
+        isOpen={isReasonModalOpen} 
+        isNavigating={!!pendingNav}
+        onSave={(r) => {
+          const nav = pendingNav;
+          setPendingNav(null);
+          handleSave(r, () => {
+            if (nav) {
+              if (nav.type === 'day') executeDayNav(nav.value);
+              else if (nav.type === 'view') executeViewNav(nav.value);
+            }
+          });
+        }} 
+        onDiscard={pendingNav ? handleDiscardAndNavigate : undefined}
+        onCancel={() => { 
+          setIsReasonModalOpen(false); 
+          setPendingNav(null);
+          setPendingReasonAction(null); 
+        }} 
+      />
+      <UnlockConfirmModal 
+        isOpen={isUnlockModalOpen} 
+        onConfirm={() => {
+          if (pendingUnlockIdx !== null) executeToggleLock(pendingUnlockIdx);
+          setIsUnlockModalOpen(false);
+          setPendingUnlockIdx(null);
+        }}
+        onCancel={() => {
+          setIsUnlockModalOpen(false);
+          setPendingUnlockIdx(null);
+        }}
+      />
     </div>
   );
 }

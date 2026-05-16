@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.7] - 2026-05-16
+### Added
+- **Dashboard Optimization**: Overhauled week cards with improved action hierarchy and moved Delete to header.
+- **Safety Deletion**: Implemented 2-step deletion with 1s loading delay and 5s auto-reset timeout.
+- **Unified Compliance Modal**: Combined justification for edits and navigation-safety alerts into one high-fidelity modal.
+- **Custom Unlock Modal**: Replaced browser alerts with custom regulatory warning modals for historical logs.
+- **UI Refinement**: Switched all compliance modals to a professional neutral palette.
+
 ## [0.9.6] - 2026-05-14
 ### Added
 - **Roadside Inspection Mode**: A dedicated 15-day compliance view for rapid regulatory review.
