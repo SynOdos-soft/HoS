@@ -12,6 +12,19 @@
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Synodos | Log</title>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('hos-preferences');
+          if (saved) {
+            var prefs = JSON.parse(saved);
+            if (prefs && prefs.theme === 'light') {
+              document.documentElement.classList.add('light-mode');
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

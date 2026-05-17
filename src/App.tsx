@@ -14,6 +14,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { InspectionView } from './components/InspectionView';
 import { ReasonModal } from './components/ReasonModal';
 import { UnlockConfirmModal } from './components/UnlockConfirmModal';
+import { UserMenu } from './components/UserMenu';
 
 const DEFAULT_METADATA: WeeklyMetadata = {
   homeTerminalAddress: '',
@@ -31,7 +32,7 @@ const DEFAULT_METADATA: WeeklyMetadata = {
   signature: '',
 };
 
-const createEmptyDays = (startDate: Date): DayEntry[] => {
+const createEmptyDays = (startDate: Date, defaultPlate: string = ''): DayEntry[] => {
   const today = startOfDay(new Date());
   return Array.from({ length: 7 }).map((_, i) => {
     const d = addDays(startDate, i);
@@ -43,21 +44,20 @@ const createEmptyDays = (startDate: Date): DayEntry[] => {
       endOdometer: '',
       locked: isBefore(d, today),
       sameVehicle: true,
-      cmvPlate: '',
+      cmvPlate: defaultPlate,
       lastEdited: new Date().toISOString(),
     };
   });
 };
 
 export default function App() {
-  const [view, setView] = useState<'dashboard' | 'editor' | 'audit'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences'>('dashboard');
   const [savedLogs, setSavedLogs] = useState<WeeklyLog[]>([]);
 
   const [preferences, setPreferences] = useState<Preferences>(() => {
     const saved = localStorage.getItem('hos-preferences');
     return saved ? JSON.parse(saved) : DEFAULT_PREFS;
   });
-  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
 
   const [currentId, setCurrentId] = useState<string>('');
   const [metadata, setMetadata] = useState<WeeklyMetadata>(DEFAULT_METADATA);
@@ -66,6 +66,7 @@ export default function App() {
   const [lastSavedLog, setLastSavedLog] = useState<WeeklyLog | null>(null);
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+  const [activeAutocompleteDay, setActiveAutocompleteDay] = useState<number | null>(null);
   const [autoLoaded, setAutoLoaded] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -109,8 +110,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (preferences.theme === 'light') document.body.classList.add('light-mode');
-    else document.body.classList.remove('light-mode');
+    if (preferences.theme === 'light') {
+      document.body.classList.add('light-mode');
+      document.documentElement.classList.add('light-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+      document.documentElement.classList.remove('light-mode');
+    }
     localStorage.setItem('hos-preferences', JSON.stringify(preferences));
   }, [preferences]);
 
@@ -158,7 +164,7 @@ export default function App() {
     if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
     const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
     setMetadata(md);
-    const d = createEmptyDays(weekStart);
+    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '');
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -178,7 +184,7 @@ export default function App() {
     if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
     const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
     setMetadata(md);
-    const d = createEmptyDays(weekStart);
+    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '');
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -224,8 +230,8 @@ export default function App() {
     });
   };
 
-  const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit') => {
-    if (hasUnsavedLockedChanges()) {
+  const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences') => {
+    if (view === 'editor' && hasUnsavedLockedChanges() && newView !== 'editor') {
       setPendingNav({ type: 'view', value: newView });
       setIsReasonModalOpen(true);
       return;
@@ -272,7 +278,7 @@ export default function App() {
       }));
       setDays(d);
       setLastSavedLog({ ...log, days: d });
-      
+
       // Update savedLogs to ensure we have the latest version in the list
       setSavedLogs(prev => prev.map(l => l.id === log.id ? log : l));
 
@@ -289,7 +295,7 @@ export default function App() {
       setIsReasonModalOpen(true);
       return;
     }
-    
+
     // Auto-save current state for non-locked changes
     await handleSave();
 
@@ -438,17 +444,17 @@ export default function App() {
       const old = lastSavedLog?.days[i];
       return old && (isBefore(parseISO(d.date), today) || old.locked) && JSON.stringify(d) !== JSON.stringify(old);
     });
-    if (needsReason && !reason) { 
-      setIsReasonModalOpen(true); 
+    if (needsReason && !reason) {
+      setIsReasonModalOpen(true);
       if (afterAction) setPendingReasonAction(() => afterAction);
-      return; 
+      return;
     }
     setIsSaving(true);
     let newAudit = auditLog;
     if (lastSavedLog) newAudit = [...auditLog, ...getAuditDiffs(lastSavedLog, { id: currentId, metadata, days }, reason)];
     const log = { id: currentId, metadata, days, auditLog: newAudit };
     await saveLog(log);
-    
+
     setAuditLog(newAudit);
     setLastSavedLog(log);
     setSavedLogs(prev => {
@@ -627,8 +633,8 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
-          <div className="input-group" style={{ flex: 1 }}>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+          <div className="input-group" style={{ flex: 1, minWidth: '220px' }}>
             <label>{t('remarks', preferences.language)}</label>
             <input
               type="text"
@@ -637,6 +643,125 @@ export default function App() {
               disabled={day.locked}
               placeholder="..."
             />
+          </div>
+          <div className="input-group" style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+            <label>CMV Plate</label>
+            <input
+              type="text"
+              value={day.cmvPlate || ''}
+              onChange={e => {
+                const val = e.target.value;
+                updateSelectedDayField(idx, 'cmvPlate', val);
+                setActiveAutocompleteDay(idx);
+                
+                const matchingVehicle = (preferences.userProfile?.vehicles || []).find(
+                  v => v.licensePlate.trim().toLowerCase() === val.trim().toLowerCase()
+                );
+                if (matchingVehicle && matchingVehicle.mileage) {
+                  updateSelectedDayField(idx, 'startOdometer', matchingVehicle.mileage);
+                  const end = Number(day.endOdometer);
+                  const start = Number(matchingVehicle.mileage);
+                  if (!day.endOdometer || end < start) {
+                    updateSelectedDayField(idx, 'endOdometer', matchingVehicle.mileage);
+                  }
+                }
+              }}
+              onFocus={() => setActiveAutocompleteDay(idx)}
+              onBlur={() => {
+                setTimeout(() => {
+                  setActiveAutocompleteDay(null);
+                  
+                  // Auto-save custom vehicle if new
+                  const newPlate = (day.cmvPlate || '').trim();
+                  if (newPlate) {
+                    const exists = (preferences.userProfile?.vehicles || []).some(
+                      v => v.licensePlate.trim().toLowerCase() === newPlate.toLowerCase()
+                    );
+                    if (!exists) {
+                      const formattedDate = format(new Date(), 'yyyy/MM/dd-HH:mm');
+                      const newVehicle = {
+                        id: `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        friendlyName: formattedDate,
+                        licensePlate: newPlate,
+                        mileage: day.startOdometer || day.endOdometer || '',
+                        vin: '',
+                        operatorName: preferences.defaultOperatorName || '',
+                        inspectionDate: ''
+                      };
+                      
+                      setPreferences(prev => ({
+                        ...prev,
+                        userProfile: {
+                          ...prev.userProfile,
+                          vehicles: [...(prev.userProfile?.vehicles || []), newVehicle]
+                        }
+                      }));
+                    }
+                  }
+                }, 200);
+              }}
+              disabled={day.locked}
+              placeholder="CMV Plate"
+              style={{ width: '100%' }}
+            />
+            {activeAutocompleteDay === idx && (preferences.userProfile?.vehicles || []).length > 0 && (
+              <div 
+                className="autocomplete-dropdown"
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  width: '100%',
+                  background: 'var(--glass-bg)',
+                  backdropFilter: 'blur(16px)',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: '8px',
+                  marginTop: '4px',
+                  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+                  zIndex: 1000,
+                  maxHeight: '200px',
+                  overflowY: 'auto'
+                }}
+              >
+                {(preferences.userProfile?.vehicles || [])
+                  .filter(v => {
+                    const search = (day.cmvPlate || '').trim().toLowerCase();
+                    if (!search) return true;
+                    return v.licensePlate.toLowerCase().includes(search) || 
+                           v.friendlyName.toLowerCase().includes(search);
+                  })
+                  .map(v => (
+                    <div
+                      key={v.id}
+                      onClick={() => {
+                        updateSelectedDayField(idx, 'cmvPlate', v.licensePlate);
+                        if (v.mileage) {
+                          updateSelectedDayField(idx, 'startOdometer', v.mileage);
+                          const end = Number(day.endOdometer);
+                          const start = Number(v.mileage);
+                          if (!day.endOdometer || end < start) {
+                            updateSelectedDayField(idx, 'endOdometer', v.mileage);
+                          }
+                        }
+                        setActiveAutocompleteDay(null);
+                      }}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        borderBottom: '1px solid var(--glass-border)',
+                        color: 'var(--text-primary)',
+                        transition: 'background 0.2s',
+                        textAlign: 'left'
+                      }}
+                      className="autocomplete-option"
+                    >
+                      {v.friendlyName ? `${v.friendlyName} (${v.licensePlate})` : v.licensePlate}
+                    </div>
+                  ))
+                }
+              </div>
+            )}
           </div>
         </div>
 
@@ -700,7 +825,6 @@ export default function App() {
       <Header
         view={view}
         onNavigate={handleGlobalNavigate}
-        onOpenPrefs={() => setIsPrefsOpen(true)}
         onSave={() => handleSave()}
         onExportPDF={handleExportPDF}
         isSaving={isSaving}
@@ -717,7 +841,23 @@ export default function App() {
       )}
 
       <div className="main-content">
-        {view === 'audit' ? (
+        {view === 'preferences' ? (
+          <PreferencesMenu
+            preferences={preferences}
+            setPreferences={setPreferences}
+            onClose={() => setView('dashboard')}
+            installPrompt={installPrompt}
+            isStandalone={isStandalone}
+            onInstall={handleInstallClick}
+          />
+        ) : view === 'profile' ? (
+          <UserMenu
+            preferences={preferences}
+            setPreferences={setPreferences}
+            onClose={() => setView('dashboard')}
+            logs={savedLogs}
+          />
+        ) : view === 'audit' ? (
           <InspectionView logs={savedLogs} preferences={preferences} />
         ) : view === 'dashboard' ? (
           <>
@@ -727,18 +867,17 @@ export default function App() {
                 return savedLogs.map(l => {
                   const isCurrent = l.id === currentWeekId;
                   const delStatus = deleteStatuses[l.id] || 'idle';
-                  
+
                   return (
                     <div key={l.id} className={`glass-panel ${isCurrent ? 'day-today' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: isCurrent ? '2px solid var(--accent-blue)' : undefined }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <h3 style={{ margin: 0 }}>Week of {l.id}</h3>
-                          {isCurrent && <span className="today-pill" style={{ position: 'static', padding: '2px 8px', fontSize: '0.6rem' }}>CURRENT</span>}
                         </div>
-                        
-                        <button 
-                          className="tool-btn" 
-                          style={{ 
+
+                        <button
+                          className="tool-btn"
+                          style={{
                             padding: '0.4rem',
                             background: delStatus === 'confirm' ? 'var(--accent-red)' : 'transparent',
                             color: delStatus === 'confirm' ? 'white' : 'var(--accent-red)',
@@ -746,7 +885,7 @@ export default function App() {
                             minWidth: delStatus === 'confirm' ? '80px' : '36px',
                             transition: 'all 0.2s ease',
                             borderRadius: '8px'
-                          }} 
+                          }}
                           onClick={(e) => { e.stopPropagation(); handleDeleteLog(l.id); }}
                           disabled={delStatus === 'loading'}
                         >
@@ -763,7 +902,7 @@ export default function App() {
                         <button className="btn-primary" style={{ flex: 1.5 }} onClick={() => handleEditLog(l.id)}>
                           {isCurrent ? 'Edit' : 'View'}
                         </button>
-                        
+
                         <button className="btn-primary" style={{ flex: 1, background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)' }} onClick={() => handleExportDashboardPDF(l)}>
                           <Download size={18} /> PDF
                         </button>
@@ -820,14 +959,8 @@ export default function App() {
           Copyright &copy; 2026 SynOdos. All rights reserved. | v0.9.9
         </footer>
       </div>
-      <PreferencesMenu
-        preferences={preferences}
-        setPreferences={setPreferences}
-        isOpen={isPrefsOpen}
-        onClose={() => setIsPrefsOpen(false)}
-      />
-      <ReasonModal 
-        isOpen={isReasonModalOpen} 
+      <ReasonModal
+        isOpen={isReasonModalOpen}
         isNavigating={!!pendingNav}
         onSave={(r) => {
           const nav = pendingNav;
@@ -838,16 +971,16 @@ export default function App() {
               else if (nav.type === 'view') executeViewNav(nav.value);
             }
           });
-        }} 
+        }}
         onDiscard={pendingNav ? handleDiscardAndNavigate : undefined}
-        onCancel={() => { 
-          setIsReasonModalOpen(false); 
+        onCancel={() => {
+          setIsReasonModalOpen(false);
           setPendingNav(null);
-          setPendingReasonAction(null); 
-        }} 
+          setPendingReasonAction(null);
+        }}
       />
-      <UnlockConfirmModal 
-        isOpen={isUnlockModalOpen} 
+      <UnlockConfirmModal
+        isOpen={isUnlockModalOpen}
         onConfirm={() => {
           if (pendingUnlockIdx !== null) executeToggleLock(pendingUnlockIdx);
           setIsUnlockModalOpen(false);

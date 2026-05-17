@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, LogOut, Save, Download, Menu, X, Shield, LayoutDashboard, FileText } from 'lucide-react';
+import { Settings, LogOut, Save, Download, Menu, X, Shield, LayoutDashboard, FileText, User } from 'lucide-react';
 
 interface HeaderProps {
-  view: 'dashboard' | 'editor' | 'audit';
-  onNavigate: (view: 'dashboard' | 'editor' | 'audit') => void;
-  onOpenPrefs: () => void;
+  view: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences';
+  onNavigate: (view: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences') => void;
   onSave?: () => void;
   onExportPDF?: () => void;
   isSaving?: boolean;
@@ -14,7 +13,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  view, onNavigate, onOpenPrefs, onSave, onExportPDF, isSaving, onSavePreset, onApplyPreset, onRoadsidePDF
+  view, onNavigate, onSave, onExportPDF, isSaving, onSavePreset, onApplyPreset, onRoadsidePDF
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -42,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
       case 'dashboard': return 'Dashboard';
       case 'editor': return 'Daily Logger';
       case 'audit': return 'Inspection';
+      case 'profile': return 'User Preferences';
+      case 'preferences': return 'System Settings';
       default: return 'SynOdos HOS';
     }
   };
@@ -119,10 +120,16 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
 
-            <div className="menu-footer">
-              <button className="menu-item" onClick={() => handleAction(onOpenPrefs)}>
-                <Settings size={20} /> System Settings
-              </button>
+            <div className="menu-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="menu-section" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
+                <label>Account & Config</label>
+                <button className={`menu-item ${view === 'profile' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('profile'))}>
+                  <User size={20} /> User Preferences
+                </button>
+                <button className={`menu-item ${view === 'preferences' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('preferences'))}>
+                  <Settings size={20} /> System Settings
+                </button>
+              </div>
               <button className="menu-item logout" onClick={() => setIsMenuOpen(false)}>
                 <LogOut size={20} /> Sign Out
               </button>

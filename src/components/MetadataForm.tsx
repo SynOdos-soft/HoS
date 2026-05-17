@@ -65,10 +65,6 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadat
               <label>Home Terminal Address</label>
               <input type="text" name="homeTerminalAddress" value={metadata.homeTerminalAddress} onChange={handleChange} placeholder="83 Iber Rd" />
             </div>
-            <div className="input-group">
-              <label>CMV Plate</label>
-              <input type="text" name="cmvPlate" value={metadata.cmvPlate} onChange={handleChange} placeholder="ABC 123" />
-            </div>
             {preferences.showTrailerPlate && (
               <div className="input-group">
                 <label>Trailer Plate</label>

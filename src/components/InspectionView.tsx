@@ -180,18 +180,18 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                               <div className="metadata-tag">CMV PLATE</div>
                               <div className="metadata-value"><span>{day.cmvPlate || metadata.cmvPlate || '--'}</span></div>
                             </div>
-                            <div className="metadata-row">
-                              <div className="metadata-tag">TRAILER</div>
-                              <div className="metadata-value"><span>{metadata.trailerPlate || '--'}</span></div>
-                            </div>
-                            <div className="metadata-row">
-                              <div className="metadata-tag">DRIVER</div>
-                              <div className="metadata-value"><span>{metadata.driverName || '--'}</span></div>
-                            </div>
-                            <div className="metadata-row">
-                              <div className="metadata-tag">CO-DRIVER</div>
-                              <div className="metadata-value"><span>{metadata.coDrivers || '--'}</span></div>
-                            </div>
+                            {preferences.showTrailerPlate && metadata.trailerPlate && (
+                              <div className="metadata-row">
+                                <div className="metadata-tag">TRAILER</div>
+                                <div className="metadata-value"><span>{metadata.trailerPlate}</span></div>
+                              </div>
+                            )}
+                             {preferences.showCoDrivers && metadata.coDrivers && (
+                              <div className="metadata-row">
+                                <div className="metadata-tag">CO-DRIVER</div>
+                                <div className="metadata-value"><span>{metadata.coDrivers}</span></div>
+                              </div>
+                            )}
                             <div className="metadata-row">
                               <div className="metadata-tag">HOME TERMINAL</div>
                               <div className="metadata-value"><span>{metadata.homeTerminalAddress || '--'}</span></div>

@@ -79,19 +79,24 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
   y += 12;
 
   // Group 3: Vehicle
-  doc.setFontSize(5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('VEHICLE INFORMATION', margin, y - 1);
-  drawField(margin, y, contentWidth * 0.33, 8, 'CMV PLATE', md.cmvPlate);
-  if (preferences.showTrailerPlate) {
-    drawField(margin + contentWidth * 0.33, y, contentWidth * 0.33, 8, 'TRAILER PLATE', md.trailerPlate);
-    if (preferences.showExempt) {
-      drawField(margin + contentWidth * 0.66, y, contentWidth * 0.34, 8, 'EXEMPT HRS (14-DAY)', md.exemptHrs14Day);
+  const hasTrailer = preferences.showTrailerPlate;
+  const hasExempt = preferences.showExempt;
+  
+  if (hasTrailer || hasExempt) {
+    doc.setFontSize(5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('VEHICLE INFORMATION', margin, y - 1);
+    
+    if (hasTrailer && hasExempt) {
+      drawField(margin, y, contentWidth * 0.5, 8, 'TRAILER PLATE', md.trailerPlate);
+      drawField(margin + contentWidth * 0.5, y, contentWidth * 0.5, 8, 'EXEMPT HRS (14-DAY)', md.exemptHrs14Day);
+    } else if (hasTrailer) {
+      drawField(margin, y, contentWidth, 8, 'TRAILER PLATE', md.trailerPlate);
+    } else if (hasExempt) {
+      drawField(margin, y, contentWidth, 8, 'EXEMPT HRS (14-DAY)', md.exemptHrs14Day);
     }
-  } else if (preferences.showExempt) {
-    drawField(margin + contentWidth * 0.33, y, contentWidth * 0.67, 8, 'EXEMPT HRS (14-DAY)', md.exemptHrs14Day);
+    y += 11;
   }
-  y += 11;
 
   // Render all days (supports multi-page)
   const statusLabels = preferences.showSleeper
@@ -262,7 +267,8 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
     const cycleInfo = `Cycle: ${cycleNum}`;
     const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}, Total: ${totalKm} km`;
     const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
-    const cmvPlateInfo = preferences.showSameVehicle && day.sameVehicle === false && day.cmvPlate ? ` | CMV Plate: ${day.cmvPlate}` : '';
+    const activePlate = day.cmvPlate || md.cmvPlate || preferences.defaultCmvPlate || '';
+    const cmvPlateInfo = activePlate ? ` | CMV Plate: ${activePlate}` : '';
 
     doc.text(`${cycleInfo} | ${odoInfo}${userRemarks}${cmvPlateInfo}`, margin + 1, y + 6);
 

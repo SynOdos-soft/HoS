@@ -1,19 +1,15 @@
 import React, { useState } from 'react';
 import { Preferences } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, X, FileText, Download, Info, Truck } from 'lucide-react';
+import { Settings, Save, FileText, Download, Info, Truck } from 'lucide-react';
 
 interface PreferencesMenuProps {
   preferences: Preferences;
   setPreferences: (prefs: Preferences) => void;
-  isOpen: boolean;
   onClose: () => void;
   installPrompt?: any;
   isStandalone?: boolean;
   onInstall?: () => void;
-  onExportJSON?: () => void;
-  onImportJSON?: () => void;
-  onClearData?: () => void;
 }
 
 const VERSIONS = [
@@ -193,12 +189,11 @@ const VERSIONS = [
 ];
 
 export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
-  preferences, setPreferences, isOpen, onClose,
+  preferences, setPreferences, onClose,
   installPrompt, isStandalone, onInstall
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'trucking' | 'install' | 'version'>('general');
-
-  if (!isOpen) return null;
+  const [activeAutocomplete, setActiveAutocomplete] = useState<boolean>(false);
 
   const toggleBoolean = (key: keyof Preferences) => {
     setPreferences({ ...preferences, [key]: !preferences[key] });
@@ -217,39 +212,29 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   ] as const;
 
   return (
-    <div className="modal-overlay">
-      <div className="glass-panel modal-container">
-        {/* Modal Header */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '1.5rem', borderBottom: '1px solid var(--glass-border)'
-        }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Settings size={24} /> Preferences</h2>
-          <button className="tool-btn" onClick={onClose} style={{ padding: '0.5rem', margin: 0 }}><X size={24} /></button>
+    <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+      <div className="glass-panel" style={{ padding: '1.5rem', paddingTop: '1rem', position: 'relative' }}>
+        
+        {/* Tab System identical to User Profile */}
+        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--glass-border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`nav-link ${isActive ? 'active' : ''}`}
+              >
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Modal Body */}
-        <div className="modal-body">
-          {/* Sidebar Navigation */}
-          <div className="modal-sidebar">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`tab-btn ${isActive ? 'active' : ''}`}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Content Area */}
-          <div className="modal-content">
+        {/* Content Area */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {activeTab === 'general' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>General Settings</h3>
@@ -280,13 +265,6 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                   <select value={preferences.weekStartsOn} onChange={(e) => setPreferences({ ...preferences, weekStartsOn: Number(e.target.value) as 0 | 1 })}>
                     <option value={1}>Monday</option>
                     <option value={0}>Sunday</option>
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label>Weekly View Mode</label>
-                  <select value={preferences.viewMode} onChange={(e) => setString('viewMode', e.target.value)}>
-                    <option value="tabs">Tabbed Days</option>
-                    <option value="stacked">Stacked Days</option>
                   </select>
                 </div>
 
@@ -322,10 +300,6 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                   </select>
                 </div>
                 <div className="input-group">
-                  <label>Driver's Name</label>
-                  <input type="text" value={preferences.defaultDriverName || ''} onChange={(e) => setString('defaultDriverName', e.target.value)} />
-                </div>
-                <div className="input-group">
                   <label>Operator Name</label>
                   <input type="text" value={preferences.defaultOperatorName || ''} onChange={(e) => setString('defaultOperatorName', e.target.value)} />
                 </div>
@@ -337,9 +311,98 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                   <label>Home Terminal Address</label>
                   <input type="text" value={preferences.defaultHomeTerminalAddress || ''} onChange={(e) => setString('defaultHomeTerminalAddress', e.target.value)} />
                 </div>
-                <div className="input-group">
+                <div className="input-group" style={{ position: 'relative' }}>
                   <label>CMV Plate</label>
-                  <input type="text" value={preferences.defaultCmvPlate || ''} onChange={(e) => setString('defaultCmvPlate', e.target.value)} />
+                  <input 
+                    type="text" 
+                    value={preferences.defaultCmvPlate || ''} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setString('defaultCmvPlate', val);
+                      setActiveAutocomplete(true);
+                      
+                      const matchingVehicle = (preferences.userProfile?.vehicles || []).find(
+                        v => v.licensePlate.trim().toLowerCase() === val.trim().toLowerCase()
+                      );
+                      if (matchingVehicle) {
+                        const updates: Partial<Preferences> = {};
+                        if (matchingVehicle.operatorName && !preferences.defaultOperatorName) {
+                          updates.defaultOperatorName = matchingVehicle.operatorName;
+                        }
+                        setPreferences({
+                          ...preferences,
+                          defaultCmvPlate: val,
+                          ...updates
+                        });
+                      }
+                    }} 
+                    onFocus={() => setActiveAutocomplete(true)}
+                    onBlur={() => {
+                      setTimeout(() => setActiveAutocomplete(false), 200);
+                    }}
+                    placeholder="CMV Plate"
+                    style={{ width: '100%' }}
+                  />
+                  {activeAutocomplete && (preferences.userProfile?.vehicles || []).length > 0 && (
+                    <div 
+                      className="autocomplete-dropdown"
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        width: '100%',
+                        background: 'var(--glass-bg)',
+                        backdropFilter: 'blur(16px)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '8px',
+                        marginTop: '4px',
+                        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+                        zIndex: 1000,
+                        maxHeight: '200px',
+                        overflowY: 'auto'
+                      }}
+                    >
+                      {(preferences.userProfile?.vehicles || [])
+                        .filter(v => {
+                          const search = (preferences.defaultCmvPlate || '').trim().toLowerCase();
+                          if (!search) return true;
+                          return v.licensePlate.toLowerCase().includes(search) || 
+                                 v.friendlyName.toLowerCase().includes(search);
+                        })
+                        .map(v => (
+                          <div
+                            key={v.id}
+                            onClick={() => {
+                              setString('defaultCmvPlate', v.licensePlate);
+                              
+                              const updates: Partial<Preferences> = {};
+                              if (v.operatorName && !preferences.defaultOperatorName) {
+                                updates.defaultOperatorName = v.operatorName;
+                              }
+                              setPreferences({
+                                ...preferences,
+                                defaultCmvPlate: v.licensePlate,
+                                ...updates
+                              });
+                              setActiveAutocomplete(false);
+                            }}
+                            style={{
+                              padding: '0.75rem 1rem',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              borderBottom: '1px solid var(--glass-border)',
+                              color: 'var(--text-primary)',
+                              transition: 'background 0.2s',
+                              textAlign: 'left'
+                            }}
+                            className="autocomplete-option"
+                          >
+                            {v.friendlyName ? `${v.friendlyName} (${v.licensePlate})` : v.licensePlate}
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -429,74 +492,15 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                 </div>
               </div>
             )}
-          </div>
         </div>
+
+        <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={onClose}>
+            <Save size={18} /> Return to Dashboard
+          </button>
+        </div>
+
       </div>
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        .modal-overlay {
-          position: fixed; inset: 0; z-index: 4000; 
-          background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-          display: flex; justify-content: center; align-items: center; padding: 1rem;
-        }
-        .modal-container {
-          width: 100%; max-width: 800px; height: 85vh; max-height: 800px;
-          border-radius: 16px; display: flex; flex-direction: column; padding: 0;
-          animation: fadeIn 0.2s ease forwards; overflow: hidden;
-        }
-        .modal-body {
-          display: flex; flex: 1; overflow: hidden;
-        }
-        .modal-sidebar {
-          width: 240px; border-right: 1px solid var(--glass-border);
-          background: rgba(0,0,0,0.1); overflow-y: auto; display: flex; flex-direction: column;
-        }
-        .modal-content {
-          flex: 1; padding: 1.5rem; overflow-y: auto;
-        }
-        .tab-btn {
-          display: flex; align-items: center; gap: 0.75rem;
-          padding: 1rem 1.5rem; background: transparent;
-          border: none; color: var(--text-secondary);
-          text-align: left; cursor: pointer; transition: all 0.2s;
-          font-weight: 400; border-left: 4px solid transparent;
-          white-space: nowrap;
-        }
-        .tab-btn:hover {
-          background: rgba(255, 255, 255, 0.05);
-        }
-        .tab-btn.active {
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
-          font-weight: 600;
-          border-left: 4px solid var(--accent-blue);
-        }
-        
-        @media (max-width: 640px) {
-          .modal-overlay {
-            padding: 0;
-          }
-          .modal-container {
-            height: 100vh; max-height: 100vh; border-radius: 0;
-          }
-          .modal-body {
-            flex-direction: column;
-          }
-          .modal-sidebar {
-            width: 100%; flex-direction: row; border-right: none; 
-            border-bottom: 1px solid var(--glass-border);
-          }
-          .tab-btn {
-            border-left: none; border-bottom: 4px solid transparent;
-          }
-          .tab-btn.active {
-            border-left: none; border-bottom: 4px solid var(--accent-blue);
-          }
-        }
-      `}</style>
     </div>
   );
 };

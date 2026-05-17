@@ -47,6 +47,27 @@ export interface WeeklyLog {
 
 export type PaintMode = Status | 'cycle';
 
+export interface VehicleProfile {
+  id: string;
+  friendlyName: string;
+  vin: string;
+  licensePlate: string;
+  mileage: string;
+  operatorName: string;
+  inspectionDate: string;
+}
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  occupations: string[];
+  licenseNumber: string;
+  licenseExpiry: string;
+  medicalExpiry: string;
+  firstAidExpiry: string;
+  vehicles: VehicleProfile[];
+}
+
 export interface Preferences {
   timeFormat: '12h' | '24h';
   theme: 'dark' | 'light';
@@ -54,7 +75,6 @@ export interface Preferences {
   showTrailerPlate: boolean;
   showExempt: boolean;
   showSleeper: boolean;
-  viewMode: 'tabs' | 'stacked';
   autoSave: boolean;
   showDailyTotals: boolean;
   language: string;
@@ -67,6 +87,7 @@ export interface Preferences {
   defaultHomeTerminalAddress: string;
   defaultCmvPlate: string;
   weekStartsOn: 0 | 1;
+  userProfile: UserProfile;
 }
 
 export const DEFAULT_PREFS: Preferences = {
@@ -76,7 +97,6 @@ export const DEFAULT_PREFS: Preferences = {
   showTrailerPlate: false,
   showExempt: false,
   showSleeper: false,
-  viewMode: 'tabs',
   autoSave: true,
   showDailyTotals: true,
   language: 'en',
@@ -89,4 +109,14 @@ export const DEFAULT_PREFS: Preferences = {
   defaultHomeTerminalAddress: '',
   defaultCmvPlate: '',
   weekStartsOn: 1,
+  userProfile: {
+    name: '',
+    email: '',
+    occupations: [],
+    licenseNumber: '',
+    licenseExpiry: '',
+    medicalExpiry: '',
+    firstAidExpiry: '',
+    vehicles: []
+  }
 };
