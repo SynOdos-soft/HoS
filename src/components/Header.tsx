@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, LogOut, Save, Download, Plus, Menu, X, Shield, LayoutDashboard, FileText } from 'lucide-react';
+import { Settings, LogOut, Save, Download, Menu, X, Shield, LayoutDashboard, FileText } from 'lucide-react';
 
 interface HeaderProps {
   view: 'dashboard' | 'editor' | 'audit';
@@ -7,14 +7,14 @@ interface HeaderProps {
   onOpenPrefs: () => void;
   onSave?: () => void;
   onExportPDF?: () => void;
-  onNewWeek?: (date: Date) => void;
   isSaving?: boolean;
   onSavePreset?: () => void;
   onApplyPreset?: () => void;
+  onRoadsidePDF?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  view, onNavigate, onOpenPrefs, onSave, onExportPDF, onNewWeek, isSaving, onSavePreset, onApplyPreset
+  view, onNavigate, onOpenPrefs, onSave, onExportPDF, isSaving, onSavePreset, onApplyPreset, onRoadsidePDF
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -100,21 +100,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button className="menu-item" onClick={() => handleAction(onExportPDF)} disabled={view !== 'editor'}>
                 <Download size={20} /> Export Log (PDF)
               </button>
-              <div className="menu-item date-input-item">
-                <Plus size={20} />
-                <span>Create New Week</span>
-                <input
-                  type="date"
-                  onChange={e => {
-                    if (e.target.value && onNewWeek) {
-                      const [y, m, d] = e.target.value.split('-').map(Number);
-                      onNewWeek(new Date(y, m - 1, d));
-                      setIsMenuOpen(false);
-                      e.target.value = '';
-                    }
-                  }}
-                />
-              </div>
+              {view === 'audit' && (
+                <button className="menu-item" onClick={() => handleAction(onRoadsidePDF)}>
+                  <Shield size={20} /> Generate Roadside PDF
+                </button>
+              )}
               <button className="menu-item" onClick={() => handleAction(onSavePreset)} disabled={view !== 'editor'}>
                 <Save size={20} /> Save Preset
               </button>

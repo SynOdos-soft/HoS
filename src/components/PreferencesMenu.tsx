@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Preferences } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, X, Shield, FileText, Download, Info, Truck } from 'lucide-react';
+import { Settings, X, FileText, Download, Info, Truck } from 'lucide-react';
 
 interface PreferencesMenuProps {
   preferences: Preferences;
@@ -11,14 +11,37 @@ interface PreferencesMenuProps {
   installPrompt?: any;
   isStandalone?: boolean;
   onInstall?: () => void;
-  onRoadsidePDF?: () => void;
-  onAuditView?: () => void;
   onExportJSON?: () => void;
   onImportJSON?: () => void;
   onClearData?: () => void;
 }
 
 const VERSIONS = [
+  {
+    version: '0.9.9',
+    date: '2026-05-17',
+    features: [
+      'Added a collapsible "Show Details" area in the Inspection View for remarks, odometer, and metadata.',
+      'Integrated mini-totals into the expandable "Verbose Log Details" button for improved UX.',
+      'Added a tappable "Cycle" pill (e.g., C1, C2) next to the date in the Inspection View to explain cycle rules.',
+      'Streamlined Header menu by removing unused actions.'
+    ],
+    fixes: [
+      'Fixed Cycle popover overflow on small screens by anchoring to the right.',
+      'Highlighted "Today" card with a dynamic blue border.'
+    ]
+  },
+  {
+    version: '0.9.8',
+    date: '2026-05-16',
+    features: [
+      'Added global Week Starts On setting (Sunday or Monday).',
+      'Improved date calculation logic to respect localized week boundaries.'
+    ],
+    fixes: [
+      'Refined navigation variable names for better maintainability.'
+    ]
+  },
   {
     version: '0.9.7',
     date: '2026-05-16',
@@ -171,7 +194,7 @@ const VERSIONS = [
 
 export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   preferences, setPreferences, isOpen, onClose,
-  installPrompt, isStandalone, onInstall, onRoadsidePDF, onAuditView
+  installPrompt, isStandalone, onInstall
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'trucking' | 'install' | 'version'>('general');
 
@@ -253,6 +276,13 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                   </select>
                 </div>
                 <div className="input-group">
+                  <label>Week Starts On</label>
+                  <select value={preferences.weekStartsOn} onChange={(e) => setPreferences({ ...preferences, weekStartsOn: Number(e.target.value) as 0 | 1 })}>
+                    <option value={1}>Monday</option>
+                    <option value={0}>Sunday</option>
+                  </select>
+                </div>
+                <div className="input-group">
                   <label>Weekly View Mode</label>
                   <select value={preferences.viewMode} onChange={(e) => setString('viewMode', e.target.value)}>
                     <option value="tabs">Tabbed Days</option>
@@ -278,45 +308,6 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                   <input type="checkbox" checked={preferences.showDailyTotals} onChange={() => toggleBoolean('showDailyTotals')} />
                   Show Daily Totals Cards
                 </label>
-
-                <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
-
-                <h3 style={{ margin: 0, color: 'var(--accent-red)' }}>Roadside Inspection</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '1rem',
-                      padding: '1rem', cursor: 'pointer',
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      border: '1px solid var(--accent-red)',
-                      borderRadius: '8px',
-                    }}
-                    onClick={() => { if (onRoadsidePDF) { onRoadsidePDF(); onClose(); } }}
-                  >
-                    <Shield size={22} color="var(--accent-red)" />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Export 15-Day PDF</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Generate last 15 days for officer review</div>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '1rem',
-                      padding: '1rem', cursor: 'pointer',
-                      background: 'rgba(245, 158, 11, 0.1)',
-                      border: '1px solid var(--accent-orange)',
-                      borderRadius: '8px',
-                    }}
-                    onClick={() => { if (onAuditView) { onAuditView(); onClose(); } }}
-                  >
-                    <Shield size={22} color="var(--accent-orange)" />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent-orange)' }}>Audit History & Compliance</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>View forensic log of all modifications</div>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 

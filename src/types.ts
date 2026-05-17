@@ -66,6 +66,7 @@ export interface Preferences {
   defaultOperatorBusinessAddress: string;
   defaultHomeTerminalAddress: string;
   defaultCmvPlate: string;
+  weekStartsOn: 0 | 1;
 }
 
 export const DEFAULT_PREFS: Preferences = {
@@ -87,4 +88,5 @@ export const DEFAULT_PREFS: Preferences = {
   defaultOperatorBusinessAddress: '',
   defaultHomeTerminalAddress: '',
   defaultCmvPlate: '',
+  weekStartsOn: 1,
 };

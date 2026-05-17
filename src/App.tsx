@@ -125,8 +125,8 @@ export default function App() {
 
   const autoLoadCurrentWeek = async () => {
     const today = new Date();
-    const monday = startOfWeek(today, { weekStartsOn: 1 });
-    const weekId = format(monday, 'yyyy-MM-dd');
+    const weekStart = startOfWeek(today, { weekStartsOn: preferences.weekStartsOn });
+    const weekId = format(weekStart, 'yyyy-MM-dd');
     const existingLog = await getLog(weekId);
     if (existingLog) {
       setCurrentId(existingLog.id);
@@ -150,15 +150,15 @@ export default function App() {
   };
 
   const startNewWeek = (targetDate: Date) => {
-    const monday = startOfWeek(targetDate, { weekStartsOn: 1 });
-    const sunday = addDays(monday, 6);
-    const id = format(monday, 'yyyy-MM-dd');
+    const weekStart = startOfWeek(targetDate, { weekStartsOn: preferences.weekStartsOn });
+    const weekend = addDays(weekStart, 6);
+    const id = format(weekStart, 'yyyy-MM-dd');
     setCurrentId(id);
-    let mStr = format(monday, 'MMMM');
-    if (mStr !== format(sunday, 'MMMM')) mStr += ` - ${format(sunday, 'MMMM')}`;
-    const md = { ...DEFAULT_METADATA, month: mStr, year: format(monday, 'yyyy'), weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
+    let mStr = format(weekStart, 'MMMM');
+    if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
+    const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
     setMetadata(md);
-    const d = createEmptyDays(monday);
+    const d = createEmptyDays(weekStart);
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -170,15 +170,15 @@ export default function App() {
   };
 
   const startNewWeekWithToday = (today: Date) => {
-    const monday = startOfWeek(today, { weekStartsOn: 1 });
-    const sunday = addDays(monday, 6);
-    const id = format(monday, 'yyyy-MM-dd');
+    const weekStart = startOfWeek(today, { weekStartsOn: preferences.weekStartsOn });
+    const weekend = addDays(weekStart, 6);
+    const id = format(weekStart, 'yyyy-MM-dd');
     setCurrentId(id);
-    let mStr = format(monday, 'MMMM');
-    if (mStr !== format(sunday, 'MMMM')) mStr += ` - ${format(sunday, 'MMMM')}`;
-    const md = { ...DEFAULT_METADATA, month: mStr, year: format(monday, 'yyyy'), weekNumber: getWeek(monday, { weekStartsOn: 1 }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
+    let mStr = format(weekStart, 'MMMM');
+    if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
+    const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
     setMetadata(md);
-    const d = createEmptyDays(monday);
+    const d = createEmptyDays(weekStart);
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -189,8 +189,8 @@ export default function App() {
   };
   const navigateToActiveDaily = async () => {
     const today = startOfDay(new Date());
-    const monday = startOfWeek(today, { weekStartsOn: 1 });
-    const weekId = format(monday, 'yyyy-MM-dd');
+    const weekStart = startOfWeek(today, { weekStartsOn: preferences.weekStartsOn });
+    const weekId = format(weekStart, 'yyyy-MM-dd');
     const existingLog = await getLog(weekId);
 
     if (existingLog) {
@@ -363,7 +363,7 @@ export default function App() {
 
     // Only audit metadata if it's a past week or already locked? 
     // Usually metadata changes are minor, but for safety we only audit if it's not the current week's metadata
-    const isCurrentWeek = newLog.id === format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const isCurrentWeek = newLog.id === format(startOfWeek(today, { weekStartsOn: preferences.weekStartsOn }), 'yyyy-MM-dd');
 
     if (!isCurrentWeek) {
       Object.keys(newLog.metadata).forEach(k => {
@@ -536,7 +536,7 @@ export default function App() {
       const ex = filtered.find(d => d.date === ds);
       filled.push(ex || { date: ds, grid: Array(96).fill('off-duty'), remarks: '', startOdometer: '', endOdometer: '', locked: true, sameVehicle: true, cmvPlate: '' });
     }
-    const cLog = allLogs.find(l => l.id === format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+    const cLog = allLogs.find(l => l.id === format(startOfWeek(today, { weekStartsOn: preferences.weekStartsOn }), 'yyyy-MM-dd'));
     generatePDF({ id: `roadside-${todayStr}`, metadata: cLog?.metadata || DEFAULT_METADATA, days: filled }, preferences, true);
   };
 
@@ -703,10 +703,10 @@ export default function App() {
         onOpenPrefs={() => setIsPrefsOpen(true)}
         onSave={() => handleSave()}
         onExportPDF={handleExportPDF}
-        onNewWeek={startNewWeek}
         isSaving={isSaving}
         onSavePreset={handleSavePreset}
         onApplyPreset={handleApplyPreset}
+        onRoadsidePDF={handleRoadsidePDF}
       />
 
       {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
@@ -723,7 +723,7 @@ export default function App() {
           <>
             <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
               {(() => {
-                const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: preferences.weekStartsOn }), 'yyyy-MM-dd');
                 return savedLogs.map(l => {
                   const isCurrent = l.id === currentWeekId;
                   const delStatus = deleteStatuses[l.id] || 'idle';
@@ -825,11 +825,6 @@ export default function App() {
         setPreferences={setPreferences}
         isOpen={isPrefsOpen}
         onClose={() => setIsPrefsOpen(false)}
-        onRoadsidePDF={handleRoadsidePDF}
-        onAuditView={() => {
-          setView('audit');
-          setIsPrefsOpen(false);
-        }}
       />
       <ReasonModal 
         isOpen={isReasonModalOpen} 

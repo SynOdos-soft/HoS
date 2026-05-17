@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.9] - 2026-05-17
+### Added
+- **Inspection UI Enhancements**: Added a collapsible "Show Details" area in the Inspection View to house remarks, odometer, and vehicle metadata.
+- **Cycle Indicator**: Added a tappable "Cycle" pill (C1/C2) right-aligned to the date in the Inspection View that opens a popover explaining cycle constraints.
+- **Integrated UX**: Consolidated the mini-totals directly into the "Verbose Log Details" expansion button to save vertical space.
+- **Visual Clarity**: Highlighted the current day's card with a distinct blue border instead of a static pill.
+
+### Fixed
+- **Popover Positioning**: Prevented the Cycle popover from bleeding off the edge of the screen by anchoring it to the right.
+- **Menu Clutter**: Streamlined the global navigation menu by removing obsolete options (Create New Week) and standardizing button styling.
+
+## [0.9.8] - 2026-05-16
+### Added
+- **Calendar Configuration**: Introduced a global setting to toggle the start of the week between Sunday and Monday.
+- **Localized Date Logic**: Updated all calculation paths to respect the user-defined week boundaries for dashboard filtering and log indexing.
+
 ## [0.9.7] - 2026-05-16
 ### Added
 - **Dashboard Optimization**: Overhauled week cards with improved action hierarchy and moved Delete to header.
