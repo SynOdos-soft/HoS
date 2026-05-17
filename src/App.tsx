@@ -817,7 +817,7 @@ export default function App() {
         )}
 
         <footer className="app-footer no-print">
-          Copyright &copy; 2026 SynOdos. All rights reserved.
+          Copyright &copy; 2026 SynOdos. All rights reserved. | v0.9.9
         </footer>
       </div>
       <PreferencesMenu

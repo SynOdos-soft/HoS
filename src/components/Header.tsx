@@ -92,26 +92,32 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
 
-            <div className="menu-section">
-              <label>Actions</label>
-              <button className="menu-item" onClick={() => handleAction(onSave)} disabled={view !== 'editor'}>
-                <Save size={20} /> {isSaving ? 'Saving...' : 'Save Progress'}
-              </button>
-              <button className="menu-item" onClick={() => handleAction(onExportPDF)} disabled={view !== 'editor'}>
-                <Download size={20} /> Export Log (PDF)
-              </button>
-              {view === 'audit' && (
-                <button className="menu-item" onClick={() => handleAction(onRoadsidePDF)}>
-                  <Shield size={20} /> Generate Roadside PDF
-                </button>
-              )}
-              <button className="menu-item" onClick={() => handleAction(onSavePreset)} disabled={view !== 'editor'}>
-                <Save size={20} /> Save Preset
-              </button>
-              <button className="menu-item" onClick={() => handleAction(onApplyPreset)} disabled={view !== 'editor'}>
-                <Download size={20} /> Apply Preset
-              </button>
-            </div>
+            {view !== 'dashboard' && (
+              <div className="menu-section">
+                <label>Actions</label>
+                {view === 'editor' && (
+                  <>
+                    <button className="menu-item" onClick={() => handleAction(onSave)}>
+                      <Save size={20} /> {isSaving ? 'Saving...' : 'Save Progress'}
+                    </button>
+                    <button className="menu-item" onClick={() => handleAction(onExportPDF)}>
+                      <Download size={20} /> Export Log (PDF)
+                    </button>
+                    <button className="menu-item" onClick={() => handleAction(onSavePreset)}>
+                      <Save size={20} /> Save Preset
+                    </button>
+                    <button className="menu-item" onClick={() => handleAction(onApplyPreset)}>
+                      <Download size={20} /> Apply Preset
+                    </button>
+                  </>
+                )}
+                {view === 'audit' && (
+                  <button className="menu-item" onClick={() => handleAction(onRoadsidePDF)}>
+                    <Shield size={20} /> Generate Roadside PDF
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="menu-footer">
               <button className="menu-item" onClick={() => handleAction(onOpenPrefs)}>
