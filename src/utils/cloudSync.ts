@@ -94,45 +94,57 @@ export async function uploadToGoogleDrive(token: string, encryptedPayload: strin
   const searchData = await searchRes.json();
   const existingFile = searchData.files && searchData.files.length > 0 ? searchData.files[0] : null;
 
-  const boundary = 'foo_bar_boundary';
-  const delimiter = `\r\n--${boundary}\r\n`;
-  const closeDelimiter = `\r\n--${boundary}--`;
-
-  const metadata = {
-    name: FILE_NAME,
-    parents: ['appDataFolder']
-  };
-
-  const multipartRequestBody =
-    delimiter +
-    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-    JSON.stringify(metadata) +
-    delimiter +
-    'Content-Type: text/plain\r\n\r\n' +
-    encryptedPayload +
-    closeDelimiter;
-
   let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
   let method = 'POST';
+  let headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`
+  };
+  let body: any = null;
 
   if (existingFile) {
-    url = `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart`;
+    // For updates, the file already exists and is correctly named and parented.
+    // We only need to update the media content using uploadType=media (fast and safe).
+    url = `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`;
     method = 'PATCH';
+    headers['Content-Type'] = 'text/plain';
+    body = encryptedPayload;
+  } else {
+    // For creation, we must upload both metadata (name and parent folder) and content (multipart).
+    const boundary = 'foo_bar_boundary';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+    const metadata = {
+      name: FILE_NAME,
+      parents: ['appDataFolder']
+    };
+    headers['Content-Type'] = `multipart/related; boundary=${boundary}`;
+    body =
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: text/plain\r\n\r\n' +
+      encryptedPayload +
+      closeDelimiter;
   }
 
   const uploadRes = await fetch(url, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': `multipart/related; boundary=${boundary}`
-    },
-    body: multipartRequestBody
+    headers,
+    body
   });
 
   if (!uploadRes.ok) {
     const errorText = await uploadRes.text();
     console.error('Google Drive Upload Error:', errorText);
-    throw new Error(`Failed to upload backup: ${uploadRes.statusText}`);
+    let errMsg = 'Failed to upload backup';
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed.error && parsed.error.message) {
+        errMsg = parsed.error.message;
+      }
+    } catch (_) {}
+    throw new Error(errMsg);
   }
 }
 
