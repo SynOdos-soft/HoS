@@ -12,6 +12,7 @@ interface InspectionViewProps {
 export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preferences }) => {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [openPopover, setOpenPopover] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const today = new Date();
   const last15Days = Array.from({ length: 15 }).map((_, i) => subDays(today, i));
@@ -282,6 +283,65 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Developer Diagnostic Panel */}
+      <div className="no-print" style={{ marginTop: '3rem', borderTop: '1px dashed var(--glass-border)', paddingTop: '2rem' }}>
+        <button 
+          className="btn-primary" 
+          style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', fontSize: '0.8rem', padding: '0.5rem 1rem' }}
+          onClick={() => setShowDebug(!showDebug)}
+        >
+          {showDebug ? 'Hide Diagnostics' : 'Show Roadside Diagnostics'}
+        </button>
+
+        {showDebug && (
+          <div className="glass-panel" style={{ marginTop: '1rem', padding: '1.5rem', fontSize: '0.85rem', lineHeight: '1.6' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: 'var(--accent-blue)' }}>System Diagnostics</h3>
+            
+            <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              <div>
+                <strong style={{ color: 'var(--text-secondary)' }}>Loaded Logs in State:</strong> {logs.length}
+                <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0 }}>
+                  {logs.map(l => (
+                    <li key={l.id}>
+                      <strong>{l.id}</strong> ({l.days.length} days, CMV: {l.metadata.cmvPlate || 'none'})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <strong style={{ color: 'var(--text-secondary)' }}>All Available Dates in Database Map ({dayMap.size}):</strong>
+                <div style={{ maxHeight: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '4px', marginTop: '0.5rem' }}>
+                  {Array.from(dayMap.keys()).sort().map(d => (
+                    <div key={d}>• {d}</div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <strong style={{ color: 'var(--text-secondary)' }}>Date Query Range (last15Days):</strong>
+                <div style={{ maxHeight: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '4px', marginTop: '0.5rem' }}>
+                  {last15Days.map(d => format(d, 'yyyy-MM-dd')).map(d => (
+                    <div key={d}>• {d} {dayMap.has(d) ? '✅ MATCHED' : '❌ NO MATCH'}</div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+                <strong style={{ color: 'var(--accent-orange)' }}>May 15, 2026 Target Inspection Day Analysis:</strong>
+                {dayMap.has('2026-05-15') ? (
+                  <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '6px', overflowX: 'auto', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                    {JSON.stringify(dayMap.get('2026-05-15'), null, 2)}
+                  </pre>
+                ) : (
+                  <div style={{ color: 'var(--accent-red)', marginTop: '0.5rem' }}>❌ May 15, 2026 was not found in the inspection list map!</div>
+                )}
+              </div>
             </div>
           </div>
         )}
