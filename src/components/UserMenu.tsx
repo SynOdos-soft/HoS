@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Preferences, VehicleProfile, WeeklyLog } from '../types';
 import { Save, Plus, Trash2, Pencil, X } from 'lucide-react';
 
@@ -22,32 +22,29 @@ const OCCUPATIONS = [
 ];
 
 export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences, onClose, logs = [] }) => {
-  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles' | 'trucking'>('personal');
   const [newVehicle, setNewVehicle] = useState<Omit<VehicleProfile, 'id'>>({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' });
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
 
-  const [profile, setProfile] = useState(preferences.userProfile || {
-    name: preferences.defaultDriverName || '',
-    email: '',
-    occupations: [],
-    licenseNumber: '',
-    licenseExpiry: '',
-    medicalExpiry: '',
-    firstAidExpiry: '',
-    vehicles: []
-  });
-
-  // Ensure vehicles array exists for older profiles
-  useEffect(() => {
-    if (profile && !profile.vehicles) {
-      setProfile(p => ({ ...p, vehicles: [] }));
+  const [profile, setProfile] = useState(() => {
+    const base = preferences.userProfile || {
+      name: '',
+      email: '',
+      occupations: [],
+      licenseNumber: '',
+      licenseExpiry: '',
+      medicalExpiry: '',
+      firstAidExpiry: '',
+      vehicles: []
+    };
+    if (base.name === '' && preferences.defaultDriverName) {
+      base.name = preferences.defaultDriverName;
     }
-  }, [profile]);
-
-  // Keep them synced if user opens menu and userProfile.name is empty but defaultDriverName is set
-  if (profile.name === '' && preferences.defaultDriverName) {
-    setProfile({ ...profile, name: preferences.defaultDriverName });
-  }
+    if (!base.vehicles) {
+      base.vehicles = [];
+    }
+    return base;
+  });
 
 
   const getVehicleMileage = (vehicle: VehicleProfile) => {
@@ -152,10 +149,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
         <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--glass-border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
           <button className={`nav-link ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>Personal Info</button>
           <button className={`nav-link ${activeTab === 'vehicles' ? 'active' : ''}`} onClick={() => setActiveTab('vehicles')}>My Vehicles</button>
+          <button className={`nav-link ${activeTab === 'trucking' ? 'active' : ''}`} onClick={() => setActiveTab('trucking')}>Trucking Features</button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {activeTab === 'personal' ? (
+          {activeTab === 'personal' && (
             <>
               <div className="input-group">
             <label>Full Name</label>
@@ -238,7 +236,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               />
             </div>
             </>
-          ) : (
+          )}
+
+          {activeTab === 'vehicles' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {(profile.vehicles || []).map(v => (
                 <div key={v.id} style={{ padding: '1rem', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border-color)', position: 'relative' }}>
@@ -321,6 +321,49 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'trucking' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Trucking Features</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '-0.75rem' }}>
+                Toggle visibility for specific HOS fields and features on the dashboard.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={preferences.showCoDrivers} 
+                    onChange={() => setPreferences(prev => ({ ...prev, showCoDrivers: !prev.showCoDrivers }))} 
+                  />
+                  Show Co-Driver(s)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={preferences.showTrailerPlate} 
+                    onChange={() => setPreferences(prev => ({ ...prev, showTrailerPlate: !prev.showTrailerPlate }))} 
+                  />
+                  Show Trailer Plate
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={preferences.showExempt} 
+                    onChange={() => setPreferences(prev => ({ ...prev, showExempt: !prev.showExempt }))} 
+                  />
+                  Show Exempt Hrs
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={preferences.showSleeper} 
+                    onChange={() => setPreferences(prev => ({ ...prev, showSleeper: !prev.showSleeper }))} 
+                  />
+                  Show Sleeper Row
+                </label>
               </div>
             </div>
           )}

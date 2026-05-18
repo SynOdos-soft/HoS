@@ -56,7 +56,20 @@ export default function App() {
 
   const [preferences, setPreferences] = useState<Preferences>(() => {
     const saved = localStorage.getItem('hos-preferences');
-    return saved ? JSON.parse(saved) : DEFAULT_PREFS;
+    if (!saved) return DEFAULT_PREFS;
+    try {
+      const parsed = JSON.parse(saved);
+      return {
+        ...DEFAULT_PREFS,
+        ...parsed,
+        userProfile: {
+          ...DEFAULT_PREFS.userProfile,
+          ...(parsed.userProfile || {})
+        }
+      };
+    } catch (e) {
+      return DEFAULT_PREFS;
+    }
   });
 
   const [currentId, setCurrentId] = useState<string>('');
@@ -120,7 +133,7 @@ export default function App() {
     localStorage.setItem('hos-preferences', JSON.stringify(preferences));
   }, [preferences]);
 
-  useEffect(() => { if (view === 'dashboard') loadDashboard(); }, [view]);
+  useEffect(() => { if (view === 'dashboard' || view === 'audit') loadDashboard(); }, [view]);
 
   useEffect(() => {
     if (!autoLoaded) {
@@ -689,13 +702,16 @@ export default function App() {
                         inspectionDate: ''
                       };
                       
-                      setPreferences(prev => ({
-                        ...prev,
-                        userProfile: {
-                          ...prev.userProfile,
-                          vehicles: [...(prev.userProfile?.vehicles || []), newVehicle]
-                        }
-                      }));
+                      setPreferences(prev => {
+                        const currentProfile = prev.userProfile || DEFAULT_PREFS.userProfile;
+                        return {
+                          ...prev,
+                          userProfile: {
+                            ...currentProfile,
+                            vehicles: [...(currentProfile.vehicles || []), newVehicle]
+                          }
+                        };
+                      });
                     }
                   }
                 }, 200);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Preferences } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, Save, FileText, Download, Info, Truck } from 'lucide-react';
+import { Settings, Save, FileText, Download, Info } from 'lucide-react';
 
 interface PreferencesMenuProps {
   preferences: Preferences;
@@ -13,6 +13,21 @@ interface PreferencesMenuProps {
 }
 
 const VERSIONS = [
+  {
+    version: '0.10.0',
+    date: '2026-05-18',
+    features: [
+      'Added a custom, full-width glassmorphism absolute autocomplete dropdown for defaults and logger plate selectors.',
+      'Moved Trucking Features directly into User Preferences for a cleaner, unified account configuration experience.',
+      'Created a robust deep-merging storage migration engine for backward-compatible saved profile upgrades.',
+      'Synchronous head script injection to completely eliminate the dark-to-light theme flashing on page reload.'
+    ],
+    fixes: [
+      'Fixed an infinite React re-render crash loop in User Preferences on mobile devices.',
+      'Ensured complete real-time IndexedDB log loading when accessing the roadside Inspection View directly.',
+      'Restored standard clean text input placeholders when clearing daily CMV Plate fields.'
+    ]
+  },
   {
     version: '0.9.9',
     date: '2026-05-17',
@@ -192,7 +207,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   preferences, setPreferences, onClose,
   installPrompt, isStandalone, onInstall
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'trucking' | 'install' | 'version'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'install' | 'version'>('general');
   const [activeAutocomplete, setActiveAutocomplete] = useState<boolean>(false);
 
   const toggleBoolean = (key: keyof Preferences) => {
@@ -206,7 +221,6 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   const tabs = [
     { id: 'general', label: 'General', icon: Settings },
     { id: 'defaults', label: 'Defaults', icon: FileText },
-    { id: 'trucking', label: 'Trucking', icon: Truck },
     ...(!isStandalone ? [{ id: 'install', label: 'Install', icon: Download }] : []),
     { id: 'version', label: 'Version', icon: Info },
   ] as const;
@@ -407,32 +421,6 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
               </div>
             )}
 
-            {activeTab === 'trucking' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Trucking Features</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '-0.75rem' }}>
-                  Toggle visibility for specific HOS fields and features on the dashboard.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showCoDrivers} onChange={() => toggleBoolean('showCoDrivers')} />
-                    Show Co-Driver(s)
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showTrailerPlate} onChange={() => toggleBoolean('showTrailerPlate')} />
-                    Show Trailer Plate
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showExempt} onChange={() => toggleBoolean('showExempt')} />
-                    Show Exempt Hrs
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={preferences.showSleeper} onChange={() => toggleBoolean('showSleeper')} />
-                    Show Sleeper Row
-                  </label>
-                </div>
-              </div>
-            )}
 
             {activeTab === 'install' && !isStandalone && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
