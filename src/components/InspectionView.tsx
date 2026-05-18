@@ -17,10 +17,34 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
   const today = new Date();
   const last15Days = Array.from({ length: 15 }).map((_, i) => subDays(today, i));
 
+  const hasData = (d: DayEntry) => {
+    const hasGridData = d.grid.some(val => val !== 'off-duty');
+    const hasRemarks = !!d.remarks;
+    const hasOdometer = !!d.startOdometer || !!d.endOdometer;
+    return hasGridData || hasRemarks || hasOdometer;
+  };
+
   const dayMap = new Map<string, { day: DayEntry, metadata: WeeklyMetadata }>();
   logs.forEach(log => {
     log.days.forEach(day => {
-      dayMap.set(day.date, { day, metadata: log.metadata });
+      const existing = dayMap.get(day.date);
+      if (existing) {
+        // Prioritize the day that has actual log entries/remarks/odometers
+        const existingActive = hasData(existing.day);
+        const newActive = hasData(day);
+        
+        if (newActive && !existingActive) {
+          dayMap.set(day.date, { day, metadata: log.metadata });
+        } else if (!existingActive && !newActive) {
+          // If both are empty, prioritize the one matching active preferences cycle
+          const matchCycle = log.metadata.cycle === preferences.defaultCycle;
+          if (matchCycle) {
+            dayMap.set(day.date, { day, metadata: log.metadata });
+          }
+        }
+      } else {
+        dayMap.set(day.date, { day, metadata: log.metadata });
+      }
     });
   });
 
