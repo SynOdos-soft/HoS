@@ -61,11 +61,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       setSyncMessage('Sync complete!');
     } catch (e: any) {
       console.error(e);
-      if (e.message.includes('401')) {
+      const errMsg = e.message || String(e);
+      if (errMsg.includes('401')) {
         handleLogout();
         setSyncMessage('Session expired. Please reconnect to Google.');
       } else {
-        setSyncMessage('Sync failed. Please try again.');
+        setSyncMessage(`Sync failed: ${errMsg}`);
       }
       setSyncStatus('error');
     }
@@ -85,18 +86,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       const decrypted = await decryptData(encrypted, preferences.cloudSyncPin);
       const data = JSON.parse(decrypted);
       if (data.preferences) {
-        // Keep current token and pin during restore
         data.preferences.cloudSyncToken = preferences.cloudSyncToken;
         data.preferences.cloudSyncPin = preferences.cloudSyncPin;
         setPreferences(data.preferences);
       }
-      // Note: Full log restoration requires IndexedDB updates. Handled separately or refresh required.
       setSyncStatus('success');
       setSyncMessage('Preferences restored successfully! (Logs sync requires app restart)');
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      const errMsg = e.message || String(e);
       setSyncStatus('error');
-      setSyncMessage('Restore failed. Incorrect PIN or corrupted data.');
+      setSyncMessage(`Restore failed: ${errMsg}`);
     }
   };
   const [newVehicle, setNewVehicle] = useState<Omit<VehicleProfile, 'id'>>({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' });
