@@ -28,63 +28,81 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   const [activeTab, setActiveTab] = useState<'personal' | 'vehicles' | 'trucking' | 'sync'>('personal');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncMessage, setSyncMessage] = useState('');
+  const [pendingSyncAction, setPendingSyncAction] = useState<'backup' | 'restore' | null>(null);
 
   const login = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/drive.appdata',
-    onSuccess: (tokenResponse) => {
-      setPreferences(p => ({ ...p, cloudSyncToken: tokenResponse.access_token, cloudSyncEnabled: true }));
+    onSuccess: async (tokenResponse) => {
+      const freshToken = tokenResponse.access_token;
+      const nextPrefs = { 
+        ...preferences, 
+        cloudSyncToken: freshToken, 
+        cloudSyncEnabled: true 
+      };
+      setPreferences(nextPrefs);
+      setSyncStatus('idle');
+      setSyncMessage('Google connected successfully!');
+      
+      // Auto-resume action with fresh token
+      if (pendingSyncAction === 'backup') {
+        setPendingSyncAction(null);
+        await runBackupWithToken(freshToken, nextPrefs);
+      } else if (pendingSyncAction === 'restore') {
+        setPendingSyncAction(null);
+        await runRestoreWithToken(freshToken, nextPrefs);
+      }
     },
-    onError: () => setSyncMessage('Google Login Failed')
+    onError: () => {
+      setSyncStatus('error');
+      setSyncMessage('Google Re-Authentication Failed');
+    }
   });
 
   const handleLogout = () => {
     googleLogout();
     setPreferences(p => ({ ...p, cloudSyncToken: '', cloudSyncEnabled: false, cloudSyncPin: '' }));
+    setPendingSyncAction(null);
   };
 
-  const handleManualSync = async () => {
-    if (!preferences.cloudSyncToken || !preferences.cloudSyncPin) {
-      setSyncMessage('Please connect to Google and set a PIN first.');
-      return;
-    }
+  const runBackupWithToken = async (token: string, currentPrefs: Preferences) => {
     try {
       setSyncStatus('syncing');
       setSyncMessage('Encrypting and uploading...');
       const payload = JSON.stringify({
         logs,
-        preferences,
+        preferences: currentPrefs,
         timestamp: new Date().toISOString()
       });
-      const encrypted = await encryptData(payload, preferences.cloudSyncPin);
-      await uploadToGoogleDrive(preferences.cloudSyncToken, encrypted);
+      const encrypted = await encryptData(payload, currentPrefs.cloudSyncPin);
+      await uploadToGoogleDrive(token, encrypted);
       setPreferences(p => ({ ...p, cloudSyncLastSync: new Date().toISOString() }));
       setSyncStatus('success');
       setSyncMessage('Sync complete!');
     } catch (e: any) {
       console.error(e);
       const errMsg = e.message || String(e);
-      if (errMsg.includes('401')) {
-        handleLogout();
-        setSyncMessage('Session expired. Please reconnect to Google.');
+      if (errMsg.includes('401') || errMsg.includes('auth') || errMsg.includes('credential')) {
+        setPendingSyncAction('backup');
+        setSyncStatus('error');
+        setSyncMessage('Session expired. Click Reconnect below to resume backup.');
       } else {
+        setSyncStatus('error');
         setSyncMessage(`Sync failed: ${errMsg}`);
       }
-      setSyncStatus('error');
     }
   };
 
-  const handleRestore = async () => {
-    if (!preferences.cloudSyncToken || !preferences.cloudSyncPin) return;
+  const runRestoreWithToken = async (token: string, currentPrefs: Preferences) => {
     try {
       setSyncStatus('syncing');
       setSyncMessage('Downloading and decrypting...');
-      const encrypted = await downloadFromGoogleDrive(preferences.cloudSyncToken);
+      const encrypted = await downloadFromGoogleDrive(token);
       if (!encrypted) {
         setSyncStatus('error');
         setSyncMessage('No backup found in Google Drive.');
         return;
       }
-      const decrypted = await decryptData(encrypted, preferences.cloudSyncPin);
+      const decrypted = await decryptData(encrypted, currentPrefs.cloudSyncPin);
       const data = JSON.parse(decrypted);
 
       // Restore all logs to IndexedDB
@@ -95,8 +113,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       }
 
       if (data.preferences) {
-        data.preferences.cloudSyncToken = preferences.cloudSyncToken;
-        data.preferences.cloudSyncPin = preferences.cloudSyncPin;
+        data.preferences.cloudSyncToken = token;
+        data.preferences.cloudSyncPin = currentPrefs.cloudSyncPin;
         setPreferences(data.preferences);
       }
       setSyncStatus('success');
@@ -107,10 +125,30 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     } catch (e: any) {
       console.error(e);
       const errMsg = e.message || String(e);
-      setSyncStatus('error');
-      setSyncMessage(`Restore failed: ${errMsg}`);
+      if (errMsg.includes('401') || errMsg.includes('auth') || errMsg.includes('credential')) {
+        setPendingSyncAction('restore');
+        setSyncStatus('error');
+        setSyncMessage('Session expired. Click Reconnect below to restore.');
+      } else {
+        setSyncStatus('error');
+        setSyncMessage(`Restore failed: ${errMsg}`);
+      }
     }
   };
+
+  const handleManualSync = async () => {
+    if (!preferences.cloudSyncToken || !preferences.cloudSyncPin) {
+      setSyncMessage('Please connect to Google and set a PIN first.');
+      return;
+    }
+    await runBackupWithToken(preferences.cloudSyncToken, preferences);
+  };
+
+  const handleRestore = async () => {
+    if (!preferences.cloudSyncToken || !preferences.cloudSyncPin) return;
+    await runRestoreWithToken(preferences.cloudSyncToken, preferences);
+  };
+
   const [newVehicle, setNewVehicle] = useState<Omit<VehicleProfile, 'id'>>({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' });
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
 
@@ -518,13 +556,36 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                       borderRadius: '8px', 
                       display: 'flex', 
                       alignItems: 'center', 
+                      justifyContent: 'space-between',
                       gap: '0.5rem',
                       fontSize: '0.85rem',
                       background: syncStatus === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                      color: syncStatus === 'error' ? 'var(--accent-red)' : 'var(--status-on-duty)'
+                      color: syncStatus === 'error' ? 'var(--accent-red)' : 'var(--status-on-duty)',
+                      flexWrap: 'wrap'
                     }}>
-                      {syncStatus === 'error' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
-                      {syncMessage}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 auto' }}>
+                        {syncStatus === 'error' ? <AlertCircle size={16} style={{ flexShrink: 0 }} /> : <CheckCircle size={16} style={{ flexShrink: 0 }} />}
+                        <span>{syncMessage}</span>
+                      </div>
+                      {pendingSyncAction && (
+                        <button
+                          className="btn-primary"
+                          onClick={() => login()}
+                          style={{
+                            padding: '4px 12px',
+                            fontSize: '0.75rem',
+                            background: 'var(--accent-blue)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                          }}
+                        >
+                          Reconnect & Retry
+                        </button>
+                      )}
                     </div>
                   )}
 
