@@ -84,14 +84,23 @@ export async function uploadToGoogleDrive(token: string, encryptedPayload: strin
   const searchData = await searchRes.json();
   const existingFile = searchData.files && searchData.files.length > 0 ? searchData.files[0] : null;
 
+  const boundary = 'foo_bar_boundary';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+
   const metadata = {
     name: FILE_NAME,
     parents: ['appDataFolder']
   };
 
-  const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-  form.append('file', new Blob([encryptedPayload], { type: 'text/plain' }));
+  const multipartRequestBody =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) +
+    delimiter +
+    'Content-Type: text/plain\r\n\r\n' +
+    encryptedPayload +
+    closeDelimiter;
 
   let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
   let method = 'POST';
@@ -103,11 +112,18 @@ export async function uploadToGoogleDrive(token: string, encryptedPayload: strin
 
   const uploadRes = await fetch(url, {
     method,
-    headers: { Authorization: `Bearer ${token}` },
-    body: form
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`
+    },
+    body: multipartRequestBody
   });
 
-  if (!uploadRes.ok) throw new Error('Failed to upload backup');
+  if (!uploadRes.ok) {
+    const errorText = await uploadRes.text();
+    console.error('Google Drive Upload Error:', errorText);
+    throw new Error(`Failed to upload backup: ${uploadRes.statusText}`);
+  }
 }
 
 export async function downloadFromGoogleDrive(token: string): Promise<string | null> {
