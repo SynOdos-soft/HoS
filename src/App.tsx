@@ -7,7 +7,7 @@ import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS, AuditEntry, APP_VERSION } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -15,6 +15,7 @@ import { InspectionView } from './components/InspectionView';
 import { ReasonModal } from './components/ReasonModal';
 import { UnlockConfirmModal } from './components/UnlockConfirmModal';
 import { UserMenu } from './components/UserMenu';
+import { SteeringWheel } from './components/Icons';
 
 const DEFAULT_METADATA: WeeklyMetadata = {
   homeTerminalAddress: '',
@@ -883,57 +884,179 @@ export default function App() {
           <InspectionView logs={savedLogs} preferences={preferences} />
         ) : view === 'dashboard' ? (
           <>
-            <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               {(() => {
                 const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: preferences.weekStartsOn }), 'yyyy-MM-dd');
-                return savedLogs.map(l => {
-                  const isCurrent = l.id === currentWeekId;
-                  const delStatus = deleteStatuses[l.id] || 'idle';
-
-                  return (
-                    <div key={l.id} className={`glass-panel ${isCurrent ? 'day-today' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: isCurrent ? '2px solid var(--accent-blue)' : undefined }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <h3 style={{ margin: 0 }}>Week of {l.id}</h3>
-                        </div>
-
-                        <button
-                          className="tool-btn"
-                          style={{
-                            padding: '0.4rem',
-                            background: delStatus === 'confirm' ? 'var(--accent-red)' : 'transparent',
-                            color: delStatus === 'confirm' ? 'white' : 'var(--accent-red)',
-                            border: delStatus === 'confirm' ? 'none' : '1px solid rgba(239, 68, 68, 0.2)',
-                            minWidth: delStatus === 'confirm' ? '80px' : '36px',
-                            transition: 'all 0.2s ease',
-                            borderRadius: '8px'
-                          }}
-                          onClick={(e) => { e.stopPropagation(); handleDeleteLog(l.id); }}
-                          disabled={delStatus === 'loading'}
-                        >
-                          {delStatus === 'loading' ? (
-                            <div className="loading-spinner-small" style={{ width: '14px', height: '14px' }} />
-                          ) : delStatus === 'confirm' ? (
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>Confirm</span>
-                          ) : (
-                            <Trash2 size={16} />
-                          )}
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                        <button className="btn-primary" style={{ flex: 1.5 }} onClick={() => handleEditLog(l.id)}>
-                          {isCurrent ? 'Edit' : 'View'}
-                        </button>
-
-                        <button className="btn-primary" style={{ flex: 1, background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)' }} onClick={() => handleExportDashboardPDF(l)}>
-                          <Download size={18} /> PDF
-                        </button>
-                      </div>
-                    </div>
-                  );
+                
+                // Group logs by month MMMM yyyy
+                const groups: Record<string, WeeklyLog[]> = {};
+                savedLogs.forEach(l => {
+                  try {
+                    const date = parseISO(l.id);
+                    const key = format(date, 'MMMM yyyy');
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(l);
+                  } catch (e) {
+                    const key = 'Other Logs';
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(l);
+                  }
                 });
+
+                // Sort group keys in reverse chronological order
+                const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+                  if (a === 'Other Logs') return 1;
+                  if (b === 'Other Logs') return -1;
+                  const idA = groups[a][0].id;
+                  const idB = groups[b][0].id;
+                  return idB.localeCompare(idA);
+                });
+
+                return sortedGroupKeys.map(month => (
+                  <div key={month} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', margin: '0.5rem 0 0.5rem 0', color: 'var(--text-secondary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontWeight: 600 }}>
+                      {month}
+                    </h2>
+                    <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                      {groups[month].map(l => {
+                        const isCurrent = l.id === currentWeekId;
+                        const delStatus = deleteStatuses[l.id] || 'idle';
+
+                        // Calculate weekly totals
+                        let totalOff = 0;
+                        let totalSb = 0;
+                        let totalD = 0;
+                        let totalOn = 0;
+
+                        if (l.days) {
+                          l.days.forEach(d => {
+                            if (d.grid) {
+                              d.grid.forEach(s => {
+                                if (s === 'off-duty') totalOff += 0.25;
+                                else if (s === 'sleeper') totalSb += 0.25;
+                                else if (s === 'driving') totalD += 0.25;
+                                else if (s === 'on-duty') totalOn += 0.25;
+                              });
+                            }
+                          });
+                        }
+
+                        return (
+                          <div 
+                            key={l.id} 
+                            className={`glass-panel dashboard-card ${isCurrent ? 'day-today' : ''}`} 
+                            style={{ 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              gap: '1rem', 
+                              border: isCurrent ? '2px solid var(--accent-blue)' : undefined,
+                              padding: '1.25rem'
+                            }}
+                            onClick={() => handleEditLog(l.id)}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  {l.id}
+                                  {isCurrent ? (
+                                    <span title="Active Week (Edit)" style={{ display: 'inline-flex' }}>
+                                      <Pencil size={15} color="var(--accent-blue)" style={{ flexShrink: 0 }} />
+                                    </span>
+                                  ) : (
+                                    <span title="Completed Week (View)" style={{ display: 'inline-flex' }}>
+                                      <Eye size={15} color="var(--text-secondary)" style={{ flexShrink: 0, opacity: 0.7 }} />
+                                    </span>
+                                  )}
+                                </h3>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <button
+                                  className="tool-btn"
+                                  style={{
+                                    padding: '0.4rem',
+                                    background: delStatus === 'confirm' ? 'var(--accent-red)' : 'transparent',
+                                    color: delStatus === 'confirm' ? 'white' : 'var(--accent-red)',
+                                    border: delStatus === 'confirm' ? 'none' : '1px solid rgba(239, 68, 68, 0.2)',
+                                    minWidth: delStatus === 'confirm' ? '70px' : '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s ease',
+                                    borderRadius: '8px'
+                                  }}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteLog(l.id); }}
+                                  disabled={delStatus === 'loading'}
+                                  title="Delete Log"
+                                >
+                                  {delStatus === 'loading' ? (
+                                    <div className="loading-spinner-small" style={{ width: '12px', height: '12px' }} />
+                                  ) : delStatus === 'confirm' ? (
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>Confirm</span>
+                                  ) : (
+                                    <Trash2 size={14} />
+                                  )}
+                                </button>
+
+                                <button
+                                  className="tool-btn"
+                                  style={{
+                                    padding: '0.4rem',
+                                    background: 'transparent',
+                                    color: 'var(--accent-blue)',
+                                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: '8px',
+                                    transition: 'all 0.2s ease',
+                                  }}
+                                  onClick={(e) => { e.stopPropagation(); handleExportDashboardPDF(l); }}
+                                  title="Export PDF"
+                                >
+                                  <Download size={14} />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-around', 
+                              alignItems: 'center',
+                              gap: '0.5rem', 
+                              background: 'transparent', 
+                              padding: '0.75rem 0 0 0', 
+                              borderTop: '1px solid var(--glass-border)',
+                              marginTop: '0.25rem',
+                              fontSize: '0.85rem',
+                              fontWeight: 700
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-blue)' }} title="Driving">
+                                <SteeringWheel size={14} /> <span>{totalD.toFixed(1)}h</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }} title="On Duty">
+                                <Briefcase size={14} /> <span>{totalOn.toFixed(1)}h</span>
+                              </div>
+                              {preferences.showSleeper && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-sleeper)' }} title="Sleeper Berth">
+                                  <Bed size={14} /> <span>{totalSb.toFixed(1)}h</span>
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-off-duty)' }} title="Off Duty">
+                                <Coffee size={14} /> <span>{totalOff.toFixed(1)}h</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </main>
+                  </div>
+                ));
               })()}
-            </main>
+            </div>
           </>
         ) : (
           <>

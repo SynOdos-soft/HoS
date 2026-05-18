@@ -1364,3 +1364,33 @@ body.light-mode .hour-block.hour-highlight, html.light-mode .hour-block.hour-hig
   background: var(--glass-border) !important;
 }
 
+/* Dashboard Card Premium Custom Styles */
+.dashboard-card {
+  cursor: pointer;
+  transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 12px 30px rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+.dashboard-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.05), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.dashboard-card:hover::after {
+  opacity: 1;
+}
+

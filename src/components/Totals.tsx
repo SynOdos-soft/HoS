@@ -1,7 +1,8 @@
 import React from 'react';
 import { Status, Preferences } from '../types';
 import { t } from '../utils/i18n';
-import { AlertTriangle, Coffee, Bed, Truck, Briefcase, Route } from 'lucide-react';
+import { AlertTriangle, Coffee, Bed, Briefcase, Route } from 'lucide-react';
+import { SteeringWheel } from './Icons';
 
 interface TotalsProps {
   grid: Status[];
@@ -50,7 +51,7 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isOverLimit ? 'var(--accent-red)' : 'var(--status-driving)' }}>
-          <Truck size={14} /> {formatHours(drivingQuarters)}
+          <SteeringWheel size={14} /> {formatHours(drivingQuarters)}
           {isOverLimit && <AlertTriangle size={14} style={{ color: 'var(--accent-red)' }} />}
           {isOverLimit && <span style={{ fontSize: '0.7rem' }}>({limitHours}h)</span>}
         </div>

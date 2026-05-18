@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { WeeklyLog, DayEntry, AuditEntry, Preferences, WeeklyMetadata } from '../types';
-import { FileText, User, Coffee, Bed, Truck, Briefcase, Route, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, User, Coffee, Bed, Briefcase, Route, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, subDays, parseISO } from 'date-fns';
 import { LogGrid } from './LogGrid';
+import { SteeringWheel } from './Icons';
 
 interface InspectionViewProps {
   logs: WeeklyLog[];
@@ -165,7 +166,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                           </div>
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-blue)' }}>
-                          <Truck size={14} /> {Math.floor(totals?.['driving'] || 0)}h{Math.round(((totals?.['driving'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['driving'] || 0) % 1) * 60)}m` : ''}
+                          <SteeringWheel size={14} /> {Math.floor(totals?.['driving'] || 0)}h{Math.round(((totals?.['driving'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['driving'] || 0) % 1) * 60)}m` : ''}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }}>
                           <Briefcase size={14} /> {Math.floor(totals?.['on-duty'] || 0)}h{Math.round(((totals?.['on-duty'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['on-duty'] || 0) % 1) * 60)}m` : ''}

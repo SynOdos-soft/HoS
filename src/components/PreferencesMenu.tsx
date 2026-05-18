@@ -18,6 +18,19 @@ const VERSIONS = [
     version: APP_VERSION,
     date: '2026-05-18',
     features: [
+      'Premium Flat Dashboard: fully tappable cards with glassmorphic border highlights, hover radial glows, and clean calendar date titles.',
+      'Embedded Weekly Totals: dynamic real-time calculations of driving, on-duty, sleeper, and off-duty times nested inside every card.',
+      'Sleek Icon-Only Metrics: minimalist totals display utilizing the same compliance iconography (Steering Wheel, Briefcase, Bed, Coffee) as the Inspection View.',
+      'Dynamic Feature Adaptability: smart auto-scaling flex container that dynamically hides the Sleeper Berth metric when disabled in settings.',
+      'Streamlined Card Utility Panel: paired PDF Export and safety Deletion confirm actions aligned perfectly on the top-right of cards with tap propagation safety.',
+      'Clutter-Free Log Details: removed redundant Driver Name inputs from weekly forms while preserving user defaults for background PDF exports.'
+    ],
+    fixes: []
+  },
+  {
+    version: '0.15.0',
+    date: '2026-05-18',
+    features: [
       'Zero-knowledge, client-side AES-GCM encrypted cloud sync and backup system.',
       'Secured integration with personal Google Drive AppData folder, isolated from user-visible folders for audit safety.',
       'One-tap preference and weekly log backup, restorable instantly with a driver-defined passphrase/PIN.'

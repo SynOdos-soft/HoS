@@ -43,10 +43,6 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadat
                 <option value="14-Day">14-Day</option>
               </select>
             </div>
-            <div className="input-group">
-              <label>Driver's Name</label>
-              <input type="text" name="driverName" value={metadata.driverName} onChange={handleChange} placeholder="John Doe" />
-            </div>
             {preferences.showCoDrivers && (
               <div className="input-group">
                 <label>Co-Driver(s)</label>
