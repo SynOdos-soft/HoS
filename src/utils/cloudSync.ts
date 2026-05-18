@@ -79,8 +79,18 @@ export async function uploadToGoogleDrive(token: string, encryptedPayload: strin
   const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${query}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
-  
-  if (!searchRes.ok) throw new Error('Failed to search Drive');
+  if (!searchRes.ok) {
+    const errorText = await searchRes.text();
+    console.error('Google Drive Search Error:', errorText);
+    let errMsg = 'Failed to search Drive';
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed.error && parsed.error.message) {
+        errMsg = parsed.error.message;
+      }
+    } catch (_) {}
+    throw new Error(errMsg);
+  }
   const searchData = await searchRes.json();
   const existingFile = searchData.files && searchData.files.length > 0 ? searchData.files[0] : null;
 
@@ -132,7 +142,18 @@ export async function downloadFromGoogleDrive(token: string): Promise<string | n
     headers: { Authorization: `Bearer ${token}` }
   });
   
-  if (!searchRes.ok) throw new Error('Failed to search Drive');
+  if (!searchRes.ok) {
+    const errorText = await searchRes.text();
+    console.error('Google Drive Search Error:', errorText);
+    let errMsg = 'Failed to search Drive';
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed.error && parsed.error.message) {
+        errMsg = parsed.error.message;
+      }
+    } catch (_) {}
+    throw new Error(errMsg);
+  }
   const searchData = await searchRes.json();
   const existingFile = searchData.files && searchData.files.length > 0 ? searchData.files[0] : null;
 
