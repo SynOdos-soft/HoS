@@ -3,6 +3,7 @@ import { Preferences, VehicleProfile, WeeklyLog } from '../types';
 import { Save, Plus, Trash2, Pencil, X, Cloud, Lock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { uploadToGoogleDrive, downloadFromGoogleDrive, encryptData, decryptData } from '../utils/cloudSync';
+import { saveLog } from '../utils/storage';
 
 interface UserMenuProps {
   preferences: Preferences;
@@ -85,13 +86,24 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       }
       const decrypted = await decryptData(encrypted, preferences.cloudSyncPin);
       const data = JSON.parse(decrypted);
+
+      // Restore all logs to IndexedDB
+      if (data.logs && Array.isArray(data.logs)) {
+        for (const log of data.logs) {
+          await saveLog(log);
+        }
+      }
+
       if (data.preferences) {
         data.preferences.cloudSyncToken = preferences.cloudSyncToken;
         data.preferences.cloudSyncPin = preferences.cloudSyncPin;
         setPreferences(data.preferences);
       }
       setSyncStatus('success');
-      setSyncMessage('Preferences restored successfully! (Logs sync requires app restart)');
+      setSyncMessage('Restore successful! Reloading page in a moment...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (e: any) {
       console.error(e);
       const errMsg = e.message || String(e);
