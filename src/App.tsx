@@ -4,7 +4,7 @@ import { Totals } from './components/Totals';
 import { MetadataForm } from './components/MetadataForm';
 import { Header } from './components/Header';
 import { PreferencesMenu } from './components/PreferencesMenu';
-import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS, AuditEntry } from './types';
+import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS, AuditEntry, APP_VERSION } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
 import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -90,7 +90,8 @@ export default function App() {
     return localStorage.getItem('hide-install-banner') !== 'true';
   });
   const [deleteStatuses, setDeleteStatuses] = useState<Record<string, 'idle' | 'loading' | 'confirm'>>({});
-  const [pendingNav, setPendingNav] = useState<{ type: 'day' | 'view' | 'active', value: any } | null>(null);
+  const [pendingNav, setPendingNav] = useState<{ type: 'day' | 'view' | 'active', value: any, tab?: 'general' | 'defaults' | 'install' | 'version' } | null>(null);
+  const [prefTab, setPrefTab] = useState<'general' | 'defaults' | 'install' | 'version'>('general');
   const [pendingReasonAction, setPendingReasonAction] = useState<(() => void) | null>(null);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [pendingUnlockIdx, setPendingUnlockIdx] = useState<number | null>(null);
@@ -243,9 +244,9 @@ export default function App() {
     });
   };
 
-  const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences') => {
+  const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences', tab?: 'general' | 'defaults' | 'install' | 'version') => {
     if (view === 'editor' && hasUnsavedLockedChanges() && newView !== 'editor') {
-      setPendingNav({ type: 'view', value: newView });
+      setPendingNav({ type: 'view', value: newView, tab });
       setIsReasonModalOpen(true);
       return;
     }
@@ -253,6 +254,7 @@ export default function App() {
     if (newView === 'editor') {
       navigateToActiveDaily();
     } else {
+      setPrefTab(tab || 'general');
       setView(newView);
     }
   };
@@ -501,7 +503,7 @@ export default function App() {
     setPendingNav(null);
     if (nav) {
       if (nav.type === 'day') executeDayNav(nav.value);
-      else if (nav.type === 'view') executeViewNav(nav.value);
+      else if (nav.type === 'view') executeViewNav(nav.value, nav.tab);
     }
   };
 
@@ -533,9 +535,12 @@ export default function App() {
     }
   };
 
-  const executeViewNav = (newView: any) => {
+  const executeViewNav = (newView: any, tab?: 'general' | 'defaults' | 'install' | 'version') => {
     if (newView === 'editor') navigateToActiveDaily();
-    else setView(newView);
+    else {
+      if (tab) setPrefTab(tab);
+      setView(newView);
+    }
   };
 
   const handleExportPDF = () => generatePDF({ id: currentId, metadata, days }, preferences);
@@ -865,6 +870,7 @@ export default function App() {
             installPrompt={installPrompt}
             isStandalone={isStandalone}
             onInstall={handleInstallClick}
+            initialTab={prefTab}
           />
         ) : view === 'profile' ? (
           <UserMenu
@@ -972,7 +978,12 @@ export default function App() {
         )}
 
         <footer className="app-footer no-print">
-          Copyright &copy; 2026 SynOdos. All rights reserved. | v0.9.9
+          Copyright &copy; 2026 SynOdos | <span 
+            style={{ cursor: 'pointer', textDecoration: 'underline' }} 
+            onClick={() => handleGlobalNavigate('preferences', 'version')}
+          >
+            v{APP_VERSION}
+          </span>
         </footer>
       </div>
       <ReasonModal
@@ -984,7 +995,7 @@ export default function App() {
           handleSave(r, () => {
             if (nav) {
               if (nav.type === 'day') executeDayNav(nav.value);
-              else if (nav.type === 'view') executeViewNav(nav.value);
+              else if (nav.type === 'view') executeViewNav(nav.value, nav.tab);
             }
           });
         }}

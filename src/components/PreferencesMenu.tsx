@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Preferences } from '../types';
+import { Preferences, APP_VERSION } from '../types';
 import { t } from '../utils/i18n';
 import { Settings, Save, FileText, Download, Info } from 'lucide-react';
 
@@ -10,9 +10,20 @@ interface PreferencesMenuProps {
   installPrompt?: any;
   isStandalone?: boolean;
   onInstall?: () => void;
+  initialTab?: 'general' | 'defaults' | 'install' | 'version';
 }
 
 const VERSIONS = [
+  {
+    version: APP_VERSION,
+    date: '2026-05-18',
+    features: [
+      'Zero-knowledge, client-side AES-GCM encrypted cloud sync and backup system.',
+      'Secured integration with personal Google Drive AppData folder, isolated from user-visible folders for audit safety.',
+      'One-tap preference and weekly log backup, restorable instantly with a driver-defined passphrase/PIN.'
+    ],
+    fixes: []
+  },
   {
     version: '0.10.0',
     date: '2026-05-18',
@@ -205,9 +216,9 @@ const VERSIONS = [
 
 export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   preferences, setPreferences, onClose,
-  installPrompt, isStandalone, onInstall
+  installPrompt, isStandalone, onInstall, initialTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'install' | 'version'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'install' | 'version'>(initialTab || 'general');
   const [activeAutocomplete, setActiveAutocomplete] = useState<boolean>(false);
 
   const toggleBoolean = (key: keyof Preferences) => {

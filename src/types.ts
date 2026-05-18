@@ -88,6 +88,10 @@ export interface Preferences {
   defaultCmvPlate: string;
   weekStartsOn: 0 | 1;
   userProfile: UserProfile;
+  cloudSyncEnabled: boolean;
+  cloudSyncPin: string;
+  cloudSyncToken: string;
+  cloudSyncLastSync: string;
 }
 
 export const DEFAULT_PREFS: Preferences = {
@@ -109,6 +113,10 @@ export const DEFAULT_PREFS: Preferences = {
   defaultHomeTerminalAddress: '',
   defaultCmvPlate: '',
   weekStartsOn: 1,
+  cloudSyncEnabled: false,
+  cloudSyncPin: '',
+  cloudSyncToken: '',
+  cloudSyncLastSync: '',
   userProfile: {
     name: '',
     email: '',
@@ -120,3 +128,5 @@ export const DEFAULT_PREFS: Preferences = {
     vehicles: []
   }
 };
+
+export const APP_VERSION = '0.15.0';
