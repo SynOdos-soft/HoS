@@ -16,6 +16,19 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-05-22',
+    features: [
+      'Interactive Roadside Day Cards: day card sections in the Inspection View are now fully collapsible for a streamlined reviewing experience.',
+      'Auto-Collapse for Off-Duty: days that are 24 hours off-duty are collapsed by default to automatically highlight active working days.',
+      'Header-Level Metrics Summary: collapsed day cards display key driving, on-duty, off-duty, and sleeper totals directly in the header strip for at-a-glance audits.'
+    ],
+    fixes: [
+      'Self-Healing IndexedDB Connection: resolved the "transaction on IDBDatabase is closing" error by implementing a self-healing connection runner that automatically reconnects and retries on failure.',
+      'High-Performance Bulk Restore: replaced sequential database operations with a single atomic transaction during backup restores, making operations up to 10x faster and eliminating transaction timeouts.'
+    ]
+  },
+  {
+    version: '0.16.0',
     date: '2026-05-18',
     features: [
       'Premium Flat Dashboard: fully tappable cards with glassmorphic border highlights, hover radial glows, and clean calendar date titles.',
