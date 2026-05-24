@@ -109,13 +109,10 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked, 
     return `${String(hour12).padStart(2, '0')}:${minutes} ${ampm}`;
   };
 
-  const formatQuarterShort = (h: number, q: number) => {
-    const minutes = q === 0 ? '00' : q === 1 ? '15' : q === 2 ? '30' : '45';
-    if (preferences.timeFormat === '24h') {
-      return `:${minutes}`;
-    }
-    return `:${minutes}`;
-  };
+  const formatQuarterShort = (q: number) => {
+  const minutes = q === 0 ? '00' : q === 1 ? '15' : q === 2 ? '30' : '45';
+  return `:${minutes}`;
+};
 
   return (
     <div className={`grid-container ${locked ? 'locked' : ''}`} id="hos-grid-container" style={{ opacity: locked ? 0.7 : 1 }}>
@@ -286,7 +283,7 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked, 
                               whiteSpace: 'nowrap',
                               lineHeight: 1
                             }}>
-                              {formatQuarterShort(h, q)}
+                              {formatQuarterShort(q)}
                             </span>
                           )}
                         </div>
