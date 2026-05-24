@@ -1333,7 +1333,7 @@ body.light-mode .hour-block.hour-highlight, html.light-mode .hour-block.hour-hig
 }
 /* Inspection View Extensions */
 .inspection-view-container { max-width: 100%; margin: 0 auto; }
-.inspection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; width: 100%; }
+.inspection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); gap: 1.25rem; width: 100%; }
 .inspection-card { padding: 1rem; display: flex; flex-direction: column; gap: 1rem; border: 1px solid var(--glass-border); border-radius: 12px; width: 100%; box-sizing: border-box; overflow: hidden; }
 .mini-totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; background: rgba(0, 0, 0, 0.05); padding: 0.75rem; border-radius: 8px; }
 .total-item { display: flex; flex-direction: column; align-items: center; min-width: 0; }

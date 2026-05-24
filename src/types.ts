@@ -92,6 +92,8 @@ export interface Preferences {
   cloudSyncPin: string;
   cloudSyncToken: string;
   cloudSyncLastSync: string;
+  hideEarlyHours: boolean;
+  collapseEarlyHours: boolean;
 }
 
 export const DEFAULT_PREFS: Preferences = {
@@ -117,6 +119,8 @@ export const DEFAULT_PREFS: Preferences = {
   cloudSyncPin: '',
   cloudSyncToken: '',
   cloudSyncLastSync: '',
+  hideEarlyHours: false,
+  collapseEarlyHours: false,
   userProfile: {
     name: '',
     email: '',
@@ -129,4 +133,4 @@ export const DEFAULT_PREFS: Preferences = {
   }
 };
 
-export const APP_VERSION = '0.16.1';
+export const APP_VERSION = '0.16.2';

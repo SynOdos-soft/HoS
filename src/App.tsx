@@ -824,6 +824,7 @@ export default function App() {
           preferences={preferences}
           locked={day.locked}
           highlightHour={currentHour}
+          date={day.date}
         />
 
         {preferences.showDailyTotals && (

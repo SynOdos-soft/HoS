@@ -16,6 +16,17 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-05-24',
+    features: [
+      'Toggleable Mobile Early Hours Collapse: drivers can now choose to automatically collapse early "dead" Off-Duty hours (prior to the first duty status change) in the log grid editor on mobile, saving over 1,000px of vertical scrolling space.',
+      'Expandable Previous Hours: easily expand collapsed hours on demand via an intuitive interactive banner to adjust earlier Off-Duty blocks if needed.'
+    ],
+    fixes: [
+      'Reactive Auto-Expansion: editing or adding a duty status dynamically updates the start bounds, ensuring no subsequent cells are collapsed unless manually requested.'
+    ]
+  },
+  {
+    version: '0.16.1',
     date: '2026-05-22',
     features: [
       'Interactive Roadside Day Cards: day card sections in the Inspection View are now fully collapsible for a streamlined reviewing experience.',
@@ -336,6 +347,14 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.showDailyTotals} onChange={() => toggleBoolean('showDailyTotals')} />
                   Show Daily Totals Cards
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={preferences.hideEarlyHours} onChange={() => toggleBoolean('hideEarlyHours')} />
+                  Hide early Off-Duty hours on mobile (removes from grid)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={preferences.collapseEarlyHours} onChange={() => toggleBoolean('collapseEarlyHours')} />
+                  Collapse early Off-Duty hours on mobile (renders compact rows)
                 </label>
               </div>
             )}
