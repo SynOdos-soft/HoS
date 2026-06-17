@@ -7,6 +7,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
+    compress: true,
   });
 
   const margin = 10;
@@ -51,15 +52,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
     doc.text(String(value || ''), x + 1, y + 6);
   };
 
-  // Group 1: Carrier
-  doc.setFontSize(5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('CARRIER INFORMATION', margin, y - 1);
-  drawField(margin, y, contentWidth * 0.4, 8, 'OPERATOR NAME', md.operatorName);
-  drawField(margin + contentWidth * 0.4, y, contentWidth * 0.6, 8, 'OPERATOR BUSINESS ADDRESS', md.operatorBusinessAddress);
-  y += 8;
-  drawField(margin, y, contentWidth, 8, 'HOME TERMINAL ADDRESS', md.homeTerminalAddress);
-  y += 12;
+  // Carrier block omitted – operator details moved to remarks section.
 
   // Group 2: Driver & Log
   doc.setFontSize(5);
@@ -250,7 +243,10 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
       doc.setDrawColor(0);
     }
 
-    // Combined Remarks/Odometer/Cycle
+    // Combined Remarks / Cycle / Odometer / Operator
+    // Determine if the day is fully off‑duty
+    const is24hOffDuty = day.grid.every(s => s === 'off-duty');
+
     doc.setLineWidth(0.2);
     doc.setDrawColor(0);
     doc.rect(margin, y, contentWidth, 8);
@@ -260,17 +256,29 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
 
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    const startOdo = parseFloat(day.startOdometer || '0');
-    const endOdo = parseFloat(day.endOdometer || '0');
-    const totalKm = (!isNaN(startOdo) && !isNaN(endOdo) && endOdo > startOdo) ? (endOdo - startOdo).toFixed(1).replace(/\.0$/, '') : '0';
-    const cycleNum = md.cycle === '7-Day' ? '1' : '2';
-    const cycleInfo = `Cycle: ${cycleNum}`;
-    const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}, Total: ${totalKm} km`;
-    const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
-    const activePlate = day.cmvPlate || md.cmvPlate || preferences.defaultCmvPlate || '';
-    const cmvPlateInfo = activePlate ? ` | CMV Plate: ${activePlate}` : '';
 
-    doc.text(`${cycleInfo} | ${odoInfo}${userRemarks}${cmvPlateInfo}`, margin + 1, y + 6);
+    if (is24hOffDuty) {
+      // Only show cycle information when no activity occurred
+      const cycleNum = md.cycle === '7-Day' ? '1' : '2';
+      const cycleInfo = `Cycle: ${cycleNum}`;
+      doc.text(cycleInfo, margin + 1, y + 6);
+    } else {
+      const startOdo = parseFloat(day.startOdometer || '0');
+      const endOdo = parseFloat(day.endOdometer || '0');
+      const totalKm = (!isNaN(startOdo) && !isNaN(endOdo) && endOdo > startOdo)
+        ? (endOdo - startOdo).toFixed(1).replace(/\.0$/, '')
+        : '0';
+      const cycleNum = md.cycle === '7-Day' ? '1' : '2';
+      const cycleInfo = `Cycle: ${cycleNum}`;
+      const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}, Total: ${totalKm} km`;
+      const operatorInfo = [md.operatorName, md.operatorBusinessAddress, md.homeTerminalAddress]
+        .filter(Boolean)
+        .join(', ');
+      const operatorText = operatorInfo ? ` | Operator: ${operatorInfo}` : '';
+      const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
+      // CMV plate omitted per new requirement
+      doc.text(`${cycleInfo} | ${odoInfo}${operatorText}${userRemarks}`, margin + 1, y + 6);
+    }
 
     // Last edited timestamp (Inspection only)
     if (isInspection && day.lastEdited) {

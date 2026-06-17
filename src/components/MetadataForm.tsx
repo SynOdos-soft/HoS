@@ -27,7 +27,7 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadat
           userSelect: 'none',
         }}
       >
-        <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Log Details (Weekly)</h2>
+        <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Log Details (Daily)</h2>
         <span style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', display: 'inline-block', transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}>
           ▼
         </span>

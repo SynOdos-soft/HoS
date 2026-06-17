@@ -26,6 +26,7 @@ export interface DayEntry {
   sameVehicle?: boolean;
   cmvPlate?: string;
   lastEdited?: string; // ISO timestamp of last edit
+  metadata?: WeeklyMetadata; // daily metadata (optional)
 }
 
 export interface AuditEntry {

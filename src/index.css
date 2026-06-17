@@ -139,7 +139,7 @@ h6 {
 }
 
 :root {
-  --header-height: 64px;
+  --header-height: 56px;
   --header-offset: 140px;
   /* Guaranteed offset to prevent overlap */
   /* ... existing vars ... */
@@ -182,7 +182,6 @@ h6 {
   border-bottom: 1px solid var(--glass-border);
   z-index: 4000;
   /* Higher than menu to keep buttons accessible */
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .header-content {
@@ -863,6 +862,9 @@ body.menu-open {
   min-width: 80px;
   overflow: hidden;
   line-height: 1.3;
+  position: sticky;
+  top: var(--header-height);
+  z-index: 5;
 }
 
 .hour-text {
@@ -891,6 +893,12 @@ body.menu-open {
   z-index: 10;
   border-right: 2px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
+}
+
+/* The TIME cell in the header row is sticky on both axes */
+.grid-header-row .grid-status-label {
+  top: 56px;
+  z-index: 15;
 }
 
 .hour-block {
@@ -1176,7 +1184,7 @@ body.light-mode .hour-block.hour-highlight, html.light-mode .hour-block.hour-hig
     border-bottom: 2px solid var(--border-color);
     border-right: none;
     position: sticky;
-    top: 0;
+    top: 56px;
     z-index: 20;
     background: var(--bg-secondary);
     display: flex;

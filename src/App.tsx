@@ -33,7 +33,7 @@ const DEFAULT_METADATA: WeeklyMetadata = {
   signature: '',
 };
 
-const createEmptyDays = (startDate: Date, defaultPlate: string = ''): DayEntry[] => {
+const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMetadata: WeeklyMetadata): DayEntry[] => {
   const today = startOfDay(new Date());
   return Array.from({ length: 7 }).map((_, i) => {
     const d = addDays(startDate, i);
@@ -47,6 +47,7 @@ const createEmptyDays = (startDate: Date, defaultPlate: string = ''): DayEntry[]
       sameVehicle: true,
       cmvPlate: defaultPlate,
       lastEdited: new Date().toISOString(),
+      metadata: defaultMetadata,
     };
   });
 };
@@ -179,7 +180,7 @@ export default function App() {
     if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
     const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
     setMetadata(md);
-    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '');
+    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '', md);
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -199,7 +200,7 @@ export default function App() {
     if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
     const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
     setMetadata(md);
-    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '');
+    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '', md);
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -261,13 +262,14 @@ export default function App() {
   };
 
   const handleSavePreset = () => {
+    const currentDayMeta = days[selectedDayIndex]?.metadata || metadata;
     const preset = {
-      driverName: metadata.driverName,
-      operatorName: metadata.operatorName,
-      operatorBusinessAddress: metadata.operatorBusinessAddress,
-      homeTerminalAddress: metadata.homeTerminalAddress,
-      cmvPlate: metadata.cmvPlate,
-      cycle: metadata.cycle,
+      driverName: currentDayMeta.driverName,
+      operatorName: currentDayMeta.operatorName,
+      operatorBusinessAddress: currentDayMeta.operatorBusinessAddress,
+      homeTerminalAddress: currentDayMeta.homeTerminalAddress,
+      cmvPlate: currentDayMeta.cmvPlate,
+      cycle: currentDayMeta.cycle,
     };
     localStorage.setItem('hos-metadata-preset', JSON.stringify(preset));
     alert('Preset saved!');
@@ -277,7 +279,11 @@ export default function App() {
     const raw = localStorage.getItem('hos-metadata-preset');
     if (!raw) { alert('No preset saved yet.'); return; }
     const preset = JSON.parse(raw);
-    setMetadata({ ...metadata, ...preset });
+    // Apply preset to the selected day's metadata
+    const updatedDays = days.map((d, i) =>
+      i === selectedDayIndex ? { ...d, metadata: { ...d.metadata, ...preset } } : d
+    );
+    setDays(updatedDays);
   };
 
   const handleEditLog = async (id: string) => {
@@ -287,10 +293,11 @@ export default function App() {
       setMetadata(log.metadata);
       setAuditLog(log.auditLog || []);
       const today = startOfDay(new Date());
-      // Auto-lock past days on load to ensure compliance
+      // Auto-lock past days on load to ensure compliance and ensure each day has metadata
       const d = log.days.map(day => ({
         ...day,
-        locked: day.locked || isBefore(parseISO(day.date), today)
+        locked: day.locked || isBefore(parseISO(day.date), today),
+        metadata: day.metadata ?? log.metadata
       }));
       setDays(d);
       setLastSavedLog({ ...log, days: d });
@@ -856,14 +863,14 @@ export default function App() {
         onRoadsidePDF={handleRoadsidePDF}
       />
 
-      {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
-        <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-          {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : installPrompt ? (<><Plus size={16} /> <span>Install App</span> <button onClick={handleInstallClick}>Install</button></>) : null}
-          <button style={{ background: 'none', border: 'none' }} onClick={() => setShowInstallBanner(false)}>✕</button>
-        </div>
-      )}
-
       <div className="main-content">
+        {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
+          <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+            {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : installPrompt ? (<><Plus size={16} /> <span>Install App</span> <button onClick={handleInstallClick}>Install</button></>) : null}
+            <button style={{ background: 'none', border: 'none' }} onClick={() => setShowInstallBanner(false)}>✕</button>
+          </div>
+        )}
+
         {view === 'preferences' ? (
           <PreferencesMenu
             preferences={preferences}
@@ -1062,7 +1069,16 @@ export default function App() {
         ) : (
           <>
             <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <MetadataForm metadata={metadata} setMetadata={setMetadata} preferences={preferences} />
+              <MetadataForm
+      metadata={days[selectedDayIndex]?.metadata || DEFAULT_METADATA}
+      setMetadata={(newMeta) => {
+        const updatedDays = days.map((d, i) =>
+          i === selectedDayIndex ? { ...d, metadata: newMeta } : d
+        );
+        setDays(updatedDays);
+      }}
+      preferences={preferences}
+    />
 
               <div className="no-print glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
                 <button className="tool-btn" onClick={() => navigateToDay('prev')} style={{ padding: '0.5rem 1rem' }}>

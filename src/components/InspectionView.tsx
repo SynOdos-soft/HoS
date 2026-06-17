@@ -258,7 +258,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                               </div>
                             </div>
                           )}
-                          {metadata && (
+                          {metadata && !is24hOffDuty && (
                             <>
                               <div className="metadata-row">
                                 <div className="metadata-tag">CMV PLATE</div>
