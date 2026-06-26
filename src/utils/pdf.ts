@@ -258,26 +258,35 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
     doc.setFont('helvetica', 'normal');
 
     if (is24hOffDuty) {
-      // Only show cycle information when no activity occurred
-      const cycleNum = md.cycle === '7-Day' ? '1' : '2';
+      const dayMeta = day.metadata || md;
+      const cycleNum = dayMeta.cycle === '7-Day' ? '1' : '2';
       const cycleInfo = `Cycle: ${cycleNum}`;
-      doc.text(cycleInfo, margin + 1, y + 6);
+      const operatorInfo = [dayMeta.operatorName, dayMeta.operatorBusinessAddress, dayMeta.homeTerminalAddress]
+        .filter(Boolean)
+        .join(', ');
+      const operatorText = operatorInfo ? ` | Operator: ${operatorInfo}` : '';
+      const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
+      const cmvPlate = day.cmvPlate || dayMeta.cmvPlate;
+      const cmvText = cmvPlate ? ` | CMV: ${cmvPlate}` : '';
+      doc.text(`${cycleInfo}${cmvText}${operatorText}${userRemarks}`, margin + 1, y + 6);
     } else {
       const startOdo = parseFloat(day.startOdometer || '0');
       const endOdo = parseFloat(day.endOdometer || '0');
       const totalKm = (!isNaN(startOdo) && !isNaN(endOdo) && endOdo > startOdo)
         ? (endOdo - startOdo).toFixed(1).replace(/\.0$/, '')
         : '0';
-      const cycleNum = md.cycle === '7-Day' ? '1' : '2';
+      const dayMeta = day.metadata || md;
+      const cycleNum = dayMeta.cycle === '7-Day' ? '1' : '2';
       const cycleInfo = `Cycle: ${cycleNum}`;
       const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}, Total: ${totalKm} km`;
-      const operatorInfo = [md.operatorName, md.operatorBusinessAddress, md.homeTerminalAddress]
+      const operatorInfo = [dayMeta.operatorName, dayMeta.operatorBusinessAddress, dayMeta.homeTerminalAddress]
         .filter(Boolean)
         .join(', ');
       const operatorText = operatorInfo ? ` | Operator: ${operatorInfo}` : '';
       const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
-      // CMV plate omitted per new requirement
-      doc.text(`${cycleInfo} | ${odoInfo}${operatorText}${userRemarks}`, margin + 1, y + 6);
+      const cmvPlate = day.cmvPlate || dayMeta.cmvPlate;
+      const cmvText = cmvPlate ? ` | CMV: ${cmvPlate}` : '';
+      doc.text(`${cycleInfo} | ${odoInfo}${cmvText}${operatorText}${userRemarks}`, margin + 1, y + 6);
     }
 
     // Last edited timestamp (Inspection only)

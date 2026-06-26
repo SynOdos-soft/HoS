@@ -1070,8 +1070,9 @@ export default function App() {
           <>
             <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <MetadataForm
-      metadata={days[selectedDayIndex]?.metadata || DEFAULT_METADATA}
+      metadata={days[selectedDayIndex]?.metadata || metadata || DEFAULT_METADATA}
       setMetadata={(newMeta) => {
+        setMetadata(newMeta);
         const updatedDays = days.map((d, i) =>
           i === selectedDayIndex ? { ...d, metadata: newMeta } : d
         );

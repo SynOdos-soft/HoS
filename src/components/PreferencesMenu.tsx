@@ -16,6 +16,17 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-06-26',
+    features: [
+      'Daily-level Metadata Editing: metadata (Operator name, addresses, CMV plate, etc.) can now be edited and saved independently for each day of the week, supporting drivers with changing daily routes and vehicles.'
+    ],
+    fixes: [
+      'Daily PDF Remarks Restoration: restored the daily CMV license plate number back onto each day\'s remarks block in the weekly PDF export.',
+      'Daily Remarks on Off-Duty Days: ensured that full Operator details, home terminal addresses, and daily remarks are rendered on the PDF for fully off-duty days.'
+    ]
+  },
+  {
+    version: '0.16.2',
     date: '2026-05-24',
     features: [
       'Toggleable Mobile Early Hours Collapse: drivers can now choose to automatically collapse early "dead" Off-Duty hours (prior to the first duty status change) in the log grid editor on mobile, saving over 1,000px of vertical scrolling space.',
