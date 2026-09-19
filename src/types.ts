@@ -16,12 +16,21 @@ export interface WeeklyMetadata {
   signature: string;
 }
 
+export interface DayVehicle {
+  cmvPlate: string;
+  friendlyName?: string;
+  startOdometer: string;
+  endOdometer: string;
+}
+
 export interface DayEntry {
   date: string; // YYYY-MM-DD
   grid: Status[]; // 96 quarters
   remarks: string;
   startOdometer: string;
   endOdometer: string;
+  additionalVehicles?: DayVehicle[];
+  vehicleName?: string;
   locked?: boolean;
   sameVehicle?: boolean;
   cmvPlate?: string;
@@ -134,4 +143,4 @@ export const DEFAULT_PREFS: Preferences = {
   }
 };
 
-export const APP_VERSION = '0.16.3';
+export const APP_VERSION = '0.17.0';

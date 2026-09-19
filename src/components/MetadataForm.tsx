@@ -51,15 +51,15 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadat
             )}
             <div className="input-group">
               <label>Operator Name</label>
-              <input type="text" name="operatorName" value={metadata.operatorName} onChange={handleChange} placeholder="First student" />
+              <input type="text" name="operatorName" value={metadata.operatorName} onChange={handleChange} />
             </div>
             <div className="input-group">
               <label>Operator Business Address</label>
-              <input type="text" name="operatorBusinessAddress" value={metadata.operatorBusinessAddress} onChange={handleChange} placeholder="1470 Star top" />
+              <input type="text" name="operatorBusinessAddress" value={metadata.operatorBusinessAddress} onChange={handleChange} />
             </div>
             <div className="input-group">
               <label>Home Terminal Address</label>
-              <input type="text" name="homeTerminalAddress" value={metadata.homeTerminalAddress} onChange={handleChange} placeholder="83 Iber Rd" />
+              <input type="text" name="homeTerminalAddress" value={metadata.homeTerminalAddress} onChange={handleChange} />
             </div>
             {preferences.showTrailerPlate && (
               <div className="input-group">

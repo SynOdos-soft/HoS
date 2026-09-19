@@ -11,7 +11,6 @@ interface InspectionViewProps {
 }
 
 export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preferences }) => {
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [userToggledDates, setUserToggledDates] = useState<Record<string, boolean>>({});
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
@@ -50,15 +49,6 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
     });
   });
 
-  const toggleExpand = (dateStr: string) => {
-    setExpandedDates(prev => {
-      const next = new Set(prev);
-      if (next.has(dateStr)) next.delete(dateStr);
-      else next.add(dateStr);
-      return next;
-    });
-  };
-
   // Collect ALL audit entries from all logs, newest first
   const allAuditEntries: AuditEntry[] = [];
   logs.forEach(log => {
@@ -84,6 +74,16 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
           const day = dayData?.day;
           const metadata = dayData?.metadata;
           const totals = day ? calculateTotals(day.grid) : null;
+          const totalDistance = day ? [
+            { start: day.startOdometer, end: day.endOdometer },
+            ...(day.additionalVehicles || []).map(vehicle => ({ start: vehicle.startOdometer, end: vehicle.endOdometer }))
+          ].reduce((sum, vehicle) => {
+            const start = Number(vehicle.start);
+            const end = Number(vehicle.end);
+            return Number.isFinite(start) && Number.isFinite(end) && end >= start && vehicle.start !== '' && vehicle.end !== ''
+              ? sum + end - start
+              : sum;
+          }, 0) : 0;
 
           const is24hOffDuty = day ? day.grid.every(val => val === 'off-duty') : true;
           const isExpanded = userToggledDates[dateStr] !== undefined 
@@ -200,10 +200,9 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                     </div>
 
                     <div style={{ marginTop: '1rem' }}>
-                      <button 
+                      <div 
                         className="btn-primary" 
-                        style={{ background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)', width: '100%', justifyContent: 'space-between', fontSize: '0.85rem', padding: '0.5rem 1rem', overflow: 'hidden' }}
-                        onClick={() => toggleExpand(dateStr)}
+                        style={{ display: 'flex', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)', width: '100%', justifyContent: 'space-between', fontSize: '0.85rem', padding: '0.5rem 1rem', overflow: 'hidden' }}
                       >
                         <div className="mini-totals-compact" style={{ 
                           display: 'flex', 
@@ -229,69 +228,68 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }}>
                             <Briefcase size={14} /> {Math.floor(totals?.['on-duty'] || 0)}h{Math.round(((totals?.['on-duty'] || 0) % 1) * 60) > 0 ? ` ${Math.round(((totals?.['on-duty'] || 0) % 1) * 60)}m` : ''}
                           </div>
-                          {day.startOdometer && day.endOdometer && (
+                          {totalDistance > 0 && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
-                              <Route size={14} /> {(parseFloat(day.endOdometer) - parseFloat(day.startOdometer)).toFixed(1)}km
+                              <Route size={14} /> {totalDistance.toFixed(1)}km
                             </div>
                           )}
                         </div>
-                        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                          {expandedDates.has(dateStr) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </div>
-                      </button>
+                      </div>
                       
-                      {expandedDates.has(dateStr) && (
-                        <div className="card-metadata-box" style={{ marginTop: '0.75rem' }}>
-                          {day.remarks && (
-                            <div className="metadata-row">
-                              <div className="metadata-tag">REMARKS</div>
-                              <div className="metadata-value italic">
-                                <span>{day.remarks}</span>
-                              </div>
+                      <div className="card-metadata-box" style={{ marginTop: '0.75rem' }}>
+                        {day.remarks && (
+                          <div className="metadata-row">
+                            <div className="metadata-tag">REMARKS</div>
+                            <div className="metadata-value italic">
+                              <span>{day.remarks}</span>
                             </div>
-                          )}
-                          {(day.startOdometer || day.endOdometer) && (
-                            <div className="metadata-row">
-                              <div className="metadata-tag">ODOMETER</div>
-                              <div className="metadata-value">
-                                <span>{day.startOdometer || '--'} → {day.endOdometer || '--'}</span>
-                              </div>
+                          </div>
+                        )}
+                        {(day.startOdometer || day.endOdometer) && (
+                          <div className="metadata-row">
+                            <div className="metadata-tag">ODOMETER</div>
+                            <div className="metadata-value">
+                              <span>{day.startOdometer || '--'} → {day.endOdometer || '--'}</span>
                             </div>
-                          )}
-                          {metadata && !is24hOffDuty && (
-                            <>
-                              <div className="metadata-row">
-                                <div className="metadata-tag">CMV PLATE</div>
-                                <div className="metadata-value"><span>{day.cmvPlate || metadata.cmvPlate || '--'}</span></div>
-                              </div>
-                              {preferences.showTrailerPlate && metadata.trailerPlate && (
+                          </div>
+                        )}
+                        {metadata && (
+                          <>
+                            {!is24hOffDuty && (
+                              <>
                                 <div className="metadata-row">
-                                  <div className="metadata-tag">TRAILER</div>
-                                  <div className="metadata-value"><span>{metadata.trailerPlate}</span></div>
+                                  <div className="metadata-tag">CMV PLATE</div>
+                                  <div className="metadata-value"><span>{day.cmvPlate || metadata.cmvPlate || '--'}</span></div>
                                 </div>
-                              )}
-                               {preferences.showCoDrivers && metadata.coDrivers && (
-                                <div className="metadata-row">
-                                  <div className="metadata-tag">CO-DRIVER</div>
-                                  <div className="metadata-value"><span>{metadata.coDrivers}</span></div>
-                                </div>
-                              )}
-                              <div className="metadata-row">
-                                <div className="metadata-tag">HOME TERMINAL</div>
-                                <div className="metadata-value"><span>{metadata.homeTerminalAddress || '--'}</span></div>
-                              </div>
-                              <div className="metadata-row">
-                                <div className="metadata-tag">OPERATOR</div>
-                                <div className="metadata-value"><span>{metadata.operatorName || '--'}</span></div>
-                              </div>
-                              <div className="metadata-row">
-                                <div className="metadata-tag">MAIN OFFICE</div>
-                                <div className="metadata-value"><span>{metadata.operatorBusinessAddress || '--'}</span></div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
+                                {preferences.showTrailerPlate && metadata.trailerPlate && (
+                                  <div className="metadata-row">
+                                    <div className="metadata-tag">TRAILER</div>
+                                    <div className="metadata-value"><span>{metadata.trailerPlate}</span></div>
+                                  </div>
+                                )}
+                                 {preferences.showCoDrivers && metadata.coDrivers && (
+                                  <div className="metadata-row">
+                                    <div className="metadata-tag">CO-DRIVER</div>
+                                    <div className="metadata-value"><span>{metadata.coDrivers}</span></div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            <div className="metadata-row">
+                              <div className="metadata-tag">HOME TERMINAL</div>
+                              <div className="metadata-value"><span>{metadata.homeTerminalAddress || '--'}</span></div>
+                            </div>
+                            <div className="metadata-row">
+                              <div className="metadata-tag">OPERATOR</div>
+                              <div className="metadata-value"><span>{metadata.operatorName || '--'}</span></div>
+                            </div>
+                            <div className="metadata-row">
+                              <div className="metadata-tag">MAIN OFFICE</div>
+                              <div className="metadata-value"><span>{metadata.operatorBusinessAddress || '--'}</span></div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )

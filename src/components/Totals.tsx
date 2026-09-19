@@ -1,5 +1,5 @@
 import React from 'react';
-import { Status, Preferences } from '../types';
+import { Status, DayVehicle, Preferences } from '../types';
 import { t } from '../utils/i18n';
 import { AlertTriangle, Coffee, Bed, Briefcase, Route } from 'lucide-react';
 import { SteeringWheel } from './Icons';
@@ -9,11 +9,12 @@ interface TotalsProps {
   preferences: Preferences;
   startOdometer?: string;
   endOdometer?: string;
+  additionalVehicles?: DayVehicle[];
   homeTerminalAddress?: string;
   variant?: 'grid' | 'compact';
 }
 
-export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer, endOdometer, homeTerminalAddress, variant = 'grid' }) => {
+export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer, endOdometer, additionalVehicles = [], homeTerminalAddress, variant = 'grid' }) => {
   const counts = grid.reduce((acc, status) => {
     acc[status] = (acc[status] || 0) + 1;
     return acc;
@@ -26,12 +27,23 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
   };
 
   const calculateTotalKm = () => {
-    const start = Number(startOdometer);
-    const end = Number(endOdometer);
-    if (!isNaN(start) && !isNaN(end) && end >= start && startOdometer !== '' && endOdometer !== '') {
-      return `${end - start} km`;
+    const primaryStart = Number(startOdometer);
+    const primaryEnd = Number(endOdometer);
+    let total = 0;
+
+    if (!isNaN(primaryStart) && !isNaN(primaryEnd) && primaryEnd >= primaryStart && startOdometer !== '' && endOdometer !== '') {
+      total += primaryEnd - primaryStart;
     }
-    return '0 km';
+
+    additionalVehicles.forEach(vehicle => {
+      const start = Number(vehicle.startOdometer);
+      const end = Number(vehicle.endOdometer);
+      if (!isNaN(start) && !isNaN(end) && end >= start && vehicle.startOdometer !== '' && vehicle.endOdometer !== '') {
+        total += end - start;
+      }
+    });
+
+    return `${total} km`;
   };
 
   const drivingQuarters = counts['driving'] || 0;

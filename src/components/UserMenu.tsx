@@ -174,31 +174,27 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   const getVehicleMileage = (vehicle: VehicleProfile) => {
     if (!vehicle.licensePlate) return vehicle.mileage || '--';
 
-    let latestOdo = 0;
-    let latestDateStr = '';
     const cleanPlate = vehicle.licensePlate.trim().toLowerCase();
+    const readings: { date: string; edited: string; value: number }[] = [];
 
     logs.forEach(log => {
-      // Check week metadata first if sameVehicle is true for any days
       log.days.forEach(day => {
         const activePlate = day.cmvPlate || log.metadata.cmvPlate || preferences.defaultCmvPlate || '';
-        if (activePlate.trim().toLowerCase() === cleanPlate) {
-          const endOdo = parseInt(day.endOdometer || '0', 10);
-          const startOdo = parseInt(day.startOdometer || '0', 10);
-          const maxOdo = Math.max(endOdo, startOdo);
-          
-          if (maxOdo > 0) {
-            if (!latestDateStr || day.date > latestDateStr) {
-              latestOdo = maxOdo;
-              latestDateStr = day.date;
-            }
-          }
+        if (activePlate.trim().toLowerCase() !== cleanPlate) return;
+
+        // Prefer the end reading for a day; otherwise use its start reading.
+        const value = Number(day.endOdometer || day.startOdometer);
+        if (Number.isFinite(value) && value > 0) {
+          readings.push({ date: day.date, edited: day.lastEdited || '', value });
         }
       });
     });
 
-    const profileMileage = parseInt(vehicle.mileage || '0', 10);
-    return latestOdo > profileMileage ? latestOdo.toString() : (vehicle.mileage || '--');
+    readings.sort((a, b) => a.date.localeCompare(b.date) || a.edited.localeCompare(b.edited));
+    const latestOdo = readings.length > 0 ? readings[readings.length - 1].value : 0;
+    const profileMileage = Number(vehicle.mileage || 0);
+    const resolvedMileage = Math.max(latestOdo, Number.isFinite(profileMileage) ? profileMileage : 0);
+    return resolvedMileage > 0 ? resolvedMileage.toString() : '--';
   };
 
   const handleSave = () => {

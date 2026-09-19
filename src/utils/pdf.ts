@@ -104,11 +104,59 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
   const gridHeight = rowHeight * statusLabels.length;
   const pageHeight = 297; // A4 height in mm
   const bottomMargin = 12;
-  const dayBlockHeight = 5 + 3 + gridHeight + 10; // header + hours bar + grid + remarks
+  const getDistance = (startValue: string, endValue: string) => {
+    const start = Number(startValue);
+    const end = Number(endValue);
+    return Number.isFinite(start) && Number.isFinite(end) && end >= start && startValue !== '' && endValue !== ''
+      ? end - start
+      : 0;
+  };
+  const formatDistance = (distance: number) => distance.toFixed(1).replace(/\.0$/, '');
+  const getDayTotalDistance = (day: WeeklyLog['days'][number]) => getDistance(day.startOdometer, day.endOdometer) +
+    (day.additionalVehicles || []).reduce((total, vehicle) => total + getDistance(vehicle.startOdometer, vehicle.endOdometer), 0);
+
+  const getRemarksText = (day: WeeklyLog['days'][number]) => {
+    const dayMeta = day.metadata || md;
+    const operatorInfo = [dayMeta.operatorName, dayMeta.operatorBusinessAddress, dayMeta.homeTerminalAddress]
+      .filter(Boolean)
+      .join(', ');
+    const operatorText = operatorInfo ? `Operator: ${operatorInfo}` : '';
+    const vehicleEntries = [
+      {
+        plate: day.cmvPlate || dayMeta.cmvPlate || '',
+        start: day.startOdometer,
+        end: day.endOdometer
+      },
+      ...(day.additionalVehicles || []).map(vehicle => ({
+        plate: vehicle.cmvPlate,
+        start: vehicle.startOdometer,
+        end: vehicle.endOdometer
+      }))
+    ];
+    const vehicleText = vehicleEntries
+      .filter(vehicle => vehicle.plate || vehicle.start || vehicle.end)
+      .map(vehicle => {
+        const plate = vehicle.plate || '';
+        const hasOdometer = vehicle.start !== '' || vehicle.end !== '';
+        return hasOdometer
+          ? `${plate} (${vehicle.start || '0'} - ${vehicle.end || '0'})`
+          : plate;
+      })
+      .join(' | ');
+    const remarksText = day.remarks ? `\nRemarks: ${day.remarks}` : '';
+
+    const detailText = [operatorText, vehicleText].filter(Boolean).join(' | ');
+    return `${detailText}${remarksText}`;
+  };
 
   log.days.forEach((day) => {
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    const remarkLines = doc.splitTextToSize(getRemarksText(day), contentWidth - 4);
+    const remarksHeight = Math.max(8, 4 + remarkLines.length * 3.2);
+
     // Check if we need a new page
-    if (y + dayBlockHeight > pageHeight - bottomMargin) {
+    if (y + 5 + 3 + gridHeight + remarksHeight + 1 > pageHeight - bottomMargin) {
       doc.addPage();
       y = margin;
     }
@@ -119,7 +167,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
 
     let totalsStr = `OFF-DUTY: ${formatH(counts['off-duty'] || 0)}`;
     if (preferences.showSleeper) totalsStr += ` | SLEEPER BERTH: ${formatH(counts['sleeper'] || 0)}`;
-    totalsStr += ` | DRIVING: ${formatH(counts['driving'] || 0)} | ON-DUTY: ${formatH(counts['on-duty'] || 0)}`;
+    totalsStr += ` | DRIVING: ${formatH(counts['driving'] || 0)} | ON-DUTY: ${formatH(counts['on-duty'] || 0)} | DISTANCE: ${formatDistance(getDayTotalDistance(day))} km`;
 
     // Day Header
     doc.setFillColor(30, 30, 30);
@@ -128,7 +176,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     const dateObj = parseISO(day.date);
-    const dayStr = `${format(dateObj, 'EEEE').toUpperCase()} ${format(dateObj, 'dd-MMM-yyyy')}`;
+    const dayStr = `${format(dateObj, 'EEEE').toUpperCase()} ${format(dateObj, 'dd-MMMM-yyyy')}`;
     doc.text(dayStr, margin + 2, y + 3.5);
 
     // Total times in header right side
@@ -243,51 +291,18 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
       doc.setDrawColor(0);
     }
 
-    // Combined Remarks / Cycle / Odometer / Operator
-    // Determine if the day is fully off‑duty
-    const is24hOffDuty = day.grid.every(s => s === 'off-duty');
-
+    // Wrapped Remarks / Cycle / Odometer / Operator
     doc.setLineWidth(0.2);
     doc.setDrawColor(0);
-    doc.rect(margin, y, contentWidth, 8);
+    doc.rect(margin, y, contentWidth, remarksHeight);
     doc.setFontSize(5);
-    doc.setFont('helvetica', 'bold');
-    doc.text('REMARKS', margin + 1, y + 2.5);
-
+    doc.setFont('helvetica', 'bold');    doc.text('REMARKS', margin + 1, y + 2.5);
+    doc.setFontSize(5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Cycle: ${(day.metadata || md).cycle === '7-Day' ? '1' : '2'}`, margin + 22, y + 2.5);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-
-    if (is24hOffDuty) {
-      const dayMeta = day.metadata || md;
-      const cycleNum = dayMeta.cycle === '7-Day' ? '1' : '2';
-      const cycleInfo = `Cycle: ${cycleNum}`;
-      const operatorInfo = [dayMeta.operatorName, dayMeta.operatorBusinessAddress, dayMeta.homeTerminalAddress]
-        .filter(Boolean)
-        .join(', ');
-      const operatorText = operatorInfo ? ` | Operator: ${operatorInfo}` : '';
-      const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
-      const cmvPlate = day.cmvPlate || dayMeta.cmvPlate;
-      const cmvText = cmvPlate ? ` | CMV: ${cmvPlate}` : '';
-      doc.text(`${cycleInfo}${cmvText}${operatorText}${userRemarks}`, margin + 1, y + 6);
-    } else {
-      const startOdo = parseFloat(day.startOdometer || '0');
-      const endOdo = parseFloat(day.endOdometer || '0');
-      const totalKm = (!isNaN(startOdo) && !isNaN(endOdo) && endOdo > startOdo)
-        ? (endOdo - startOdo).toFixed(1).replace(/\.0$/, '')
-        : '0';
-      const dayMeta = day.metadata || md;
-      const cycleNum = dayMeta.cycle === '7-Day' ? '1' : '2';
-      const cycleInfo = `Cycle: ${cycleNum}`;
-      const odoInfo = `Odometer: Start ${day.startOdometer || '0'}, End ${day.endOdometer || '0'}, Total: ${totalKm} km`;
-      const operatorInfo = [dayMeta.operatorName, dayMeta.operatorBusinessAddress, dayMeta.homeTerminalAddress]
-        .filter(Boolean)
-        .join(', ');
-      const operatorText = operatorInfo ? ` | Operator: ${operatorInfo}` : '';
-      const userRemarks = day.remarks ? ` | ${day.remarks}` : '';
-      const cmvPlate = day.cmvPlate || dayMeta.cmvPlate;
-      const cmvText = cmvPlate ? ` | CMV: ${cmvPlate}` : '';
-      doc.text(`${cycleInfo} | ${odoInfo}${cmvText}${operatorText}${userRemarks}`, margin + 1, y + 6);
-    }
+    doc.text(remarkLines, margin + 1, y + 6);
 
     // Last edited timestamp (Inspection only)
     if (isInspection && day.lastEdited) {
@@ -297,10 +312,10 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
       const editStr = `${editDate.getFullYear()} - ${pad(editDate.getMonth() + 1)} - ${pad(editDate.getDate())} / ${pad(editDate.getHours())}:${pad(editDate.getMinutes())}:${pad(editDate.getSeconds())} ${tz}`;
       doc.setFontSize(5);
       doc.setFont('helvetica', 'italic');
-      doc.text(`Last edited: ${editStr}`, margin + contentWidth - 1, y + 6, { align: 'right' });
+      doc.text(`Last edited: ${editStr}`, margin + contentWidth - 1, y + Math.min(remarksHeight - 2, 6), { align: 'right' });
     }
 
-    y += 9;
+    y += remarksHeight + 1;
   });
 
   // Footer Signature — check if we need a new page
@@ -323,7 +338,7 @@ export const generatePDF = (log: WeeklyLog, preferences: Preferences, isInspecti
   doc.setLineDashPattern([1, 1], 0);
   doc.line(margin + 72, y + 1, margin + 120, y + 1);
 
-  doc.text('Date: ' + format(exportTime, 'dd-MMM-yyyy'), margin + 130, y);
+  doc.text('Date: ' + format(exportTime, 'dd-MMMM-yyyy'), margin + 130, y);
   doc.line(margin + 138, y + 1, margin + contentWidth, y + 1);
   doc.setLineDashPattern([], 0);
 

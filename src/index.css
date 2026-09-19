@@ -719,6 +719,88 @@ body.menu-open {
   gap: 0.5rem;
 }
 
+.vehicle-entry-group,
+.additional-vehicle-entry {
+  padding: 1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.additional-vehicle-entry {
+  position: relative;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.vehicle-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+  color: var(--text-primary);
+}
+
+.vehicle-entry-header span {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.add-vehicle-btn,
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--accent-blue);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0;
+  background: transparent;
+  color: var(--accent-blue);
+  cursor: pointer;
+}
+
+.add-vehicle-btn {
+  margin-bottom: 1rem;
+}
+
+.icon-btn {
+  margin-top: 0;
+  padding: 0.3rem;
+  border-color: rgba(239, 68, 68, 0.35);
+  color: var(--accent-red);
+}
+
+.icon-btn.delete-confirm {
+  min-width: 0;
+  justify-content: center;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.add-vehicle-btn:disabled,
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.input-group textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 4rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-family: var(--font-body);
+}
+
 .input-group label {
   font-size: 0.875rem;
   color: var(--text-secondary);
@@ -1402,3 +1484,22 @@ body.light-mode .hour-block.hour-highlight, html.light-mode .hour-block.hour-hig
   opacity: 1;
 }
 
+.close-btn {
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.close-btn:hover {
+  background: rgba(156, 163, 175, 0.15);
+  color: var(--text-primary);
+}

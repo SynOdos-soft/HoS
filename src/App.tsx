@@ -4,10 +4,10 @@ import { Totals } from './components/Totals';
 import { MetadataForm } from './components/MetadataForm';
 import { Header } from './components/Header';
 import { PreferencesMenu } from './components/PreferencesMenu';
-import { WeeklyLog, WeeklyMetadata, Status, DayEntry, Preferences, DEFAULT_PREFS, AuditEntry, APP_VERSION } from './types';
+import { WeeklyLog, WeeklyMetadata, Status, DayEntry, DayVehicle, Preferences, DEFAULT_PREFS, AuditEntry, APP_VERSION } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase } from 'lucide-react';
+import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase, X } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -33,8 +33,19 @@ const DEFAULT_METADATA: WeeklyMetadata = {
   signature: '',
 };
 
+const LAST_USED_VEHICLE_KEY = 'hos-last-used-vehicle-plate';
+
+const getLastUsedVehiclePlate = (fallback = '') =>
+  localStorage.getItem(LAST_USED_VEHICLE_KEY) || fallback;
+
+const rememberVehiclePlate = (plate: string) => {
+  const normalizedPlate = plate.trim();
+  if (normalizedPlate) localStorage.setItem(LAST_USED_VEHICLE_KEY, normalizedPlate);
+};
+
 const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMetadata: WeeklyMetadata): DayEntry[] => {
   const today = startOfDay(new Date());
+  const initialPlate = getLastUsedVehiclePlate(defaultPlate);
   return Array.from({ length: 7 }).map((_, i) => {
     const d = addDays(startDate, i);
     return {
@@ -43,9 +54,10 @@ const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMeta
       remarks: '',
       startOdometer: '',
       endOdometer: '',
+      additionalVehicles: [],
       locked: isBefore(d, today),
       sameVehicle: true,
-      cmvPlate: defaultPlate,
+      cmvPlate: initialPlate,
       lastEdited: new Date().toISOString(),
       metadata: defaultMetadata,
     };
@@ -82,6 +94,8 @@ export default function App() {
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
   const [activeAutocompleteDay, setActiveAutocompleteDay] = useState<number | null>(null);
+  const [activeAdditionalAutocomplete, setActiveAdditionalAutocomplete] = useState<{ dayIndex: number; vehicleIndex: number } | null>(null);
+  const [pendingAdditionalDeletes, setPendingAdditionalDeletes] = useState<Record<string, boolean>>({});
   const [autoLoaded, setAutoLoaded] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -145,6 +159,16 @@ export default function App() {
     }
   }, []);
 
+  const applyLastUsedVehicle = (day: DayEntry, fallbackPlate: string) => {
+    const lastUsedPlate = getLastUsedVehiclePlate();
+    const currentPlate = (day.cmvPlate || '').trim().toLowerCase();
+    const defaultPlate = fallbackPlate.trim().toLowerCase();
+    if (lastUsedPlate && (!currentPlate || currentPlate === defaultPlate)) {
+      return { ...day, cmvPlate: lastUsedPlate };
+    }
+    return day;
+  };
+
   const autoLoadCurrentWeek = async () => {
     const today = new Date();
     const weekStart = startOfWeek(today, { weekStartsOn: preferences.weekStartsOn });
@@ -153,11 +177,16 @@ export default function App() {
     if (existingLog) {
       setCurrentId(existingLog.id);
       setMetadata(existingLog.metadata);
-      setDays(existingLog.days);
-      setAuditLog(existingLog.auditLog || []);
-      setLastSavedLog(existingLog);
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayIdx = existingLog.days.findIndex(d => d.date === todayStr);
+      const loadedDays = existingLog.days.map((day, idx) =>
+        idx === (todayIdx >= 0 ? todayIdx : 0)
+          ? applyLastUsedVehicle(day, preferences.defaultCmvPlate || existingLog.metadata.cmvPlate || '')
+          : day
+      );
+      setDays(loadedDays);
+      setAuditLog(existingLog.auditLog || []);
+      setLastSavedLog({ ...existingLog, days: loadedDays });
       setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
       setView('editor');
     } else {
@@ -176,11 +205,13 @@ export default function App() {
     const weekend = addDays(weekStart, 6);
     const id = format(weekStart, 'yyyy-MM-dd');
     setCurrentId(id);
+    const lastUsedPlate = getLastUsedVehiclePlate(preferences.defaultCmvPlate || '');
+    const weekDefaults = { ...preferences, defaultCmvPlate: lastUsedPlate };
     let mStr = format(weekStart, 'MMMM');
     if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
-    const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
+    const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: weekDefaults.defaultCycle || '7-Day', driverName: weekDefaults.defaultDriverName || '', operatorName: weekDefaults.defaultOperatorName || '', operatorBusinessAddress: weekDefaults.defaultOperatorBusinessAddress || '', homeTerminalAddress: weekDefaults.defaultHomeTerminalAddress || '', cmvPlate: lastUsedPlate };
     setMetadata(md);
-    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '', md);
+    const d = createEmptyDays(weekStart, lastUsedPlate, md);
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -196,11 +227,13 @@ export default function App() {
     const weekend = addDays(weekStart, 6);
     const id = format(weekStart, 'yyyy-MM-dd');
     setCurrentId(id);
+    const lastUsedPlate = getLastUsedVehiclePlate(preferences.defaultCmvPlate || '');
+    const weekDefaults = { ...preferences, defaultCmvPlate: lastUsedPlate };
     let mStr = format(weekStart, 'MMMM');
     if (mStr !== format(weekend, 'MMMM')) mStr += ` - ${format(weekend, 'MMMM')}`;
-    const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: preferences.defaultCycle || '7-Day', driverName: preferences.defaultDriverName || '', operatorName: preferences.defaultOperatorName || '', operatorBusinessAddress: preferences.defaultOperatorBusinessAddress || '', homeTerminalAddress: preferences.defaultHomeTerminalAddress || '', cmvPlate: preferences.defaultCmvPlate || '' };
+    const md = { ...DEFAULT_METADATA, month: mStr, year: format(weekStart, 'yyyy'), weekNumber: getWeek(weekStart, { weekStartsOn: preferences.weekStartsOn }).toString(), cycle: weekDefaults.defaultCycle || '7-Day', driverName: weekDefaults.defaultDriverName || '', operatorName: weekDefaults.defaultOperatorName || '', operatorBusinessAddress: weekDefaults.defaultOperatorBusinessAddress || '', homeTerminalAddress: weekDefaults.defaultHomeTerminalAddress || '', cmvPlate: lastUsedPlate };
     setMetadata(md);
-    const d = createEmptyDays(weekStart, preferences.defaultCmvPlate || '', md);
+    const d = createEmptyDays(weekStart, lastUsedPlate, md);
     setDays(d);
     setAuditLog([]);
     setLastSavedLog({ id, metadata: md, days: d, auditLog: [] });
@@ -223,10 +256,15 @@ export default function App() {
         ...day,
         locked: day.locked || isBefore(parseISO(day.date), today)
       }));
-      setDays(d);
-      setLastSavedLog({ ...existingLog, days: d });
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayIdx = d.findIndex(x => x.date === todayStr);
+      const loadedDays = d.map((day, idx) =>
+        idx === (todayIdx >= 0 ? todayIdx : 0)
+          ? applyLastUsedVehicle(day, preferences.defaultCmvPlate || existingLog.metadata.cmvPlate || '')
+          : day
+      );
+      setDays(loadedDays);
+      setLastSavedLog({ ...existingLog, days: loadedDays });
       setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
       setView('editor');
     } else {
@@ -286,6 +324,51 @@ export default function App() {
     setDays(updatedDays);
   };
 
+  const getLatestVehicleOdometer = (plate: string, vehicleMileage = '') => {
+    const cleanPlate = plate.trim().toLowerCase();
+    if (!cleanPlate) return vehicleMileage;
+
+    const logsToSearch = lastSavedLog
+      ? [...savedLogs.filter(log => log.id !== lastSavedLog.id), lastSavedLog]
+      : savedLogs;
+    const readings = logsToSearch.flatMap(log => log.days
+      .filter(day => (day.cmvPlate || log.metadata.cmvPlate || '').trim().toLowerCase() === cleanPlate)
+      .map(day => ({
+        date: day.date,
+        edited: day.lastEdited || '',
+        value: day.endOdometer || day.startOdometer
+      }))
+      .filter(reading => reading.value && Number.isFinite(Number(reading.value)))
+    );
+
+    readings.sort((a, b) => a.date.localeCompare(b.date) || a.edited.localeCompare(b.edited));
+    return readings.length > 0 ? readings[readings.length - 1].value : vehicleMileage;
+  };
+
+  const applyVehicleSelection = (idx: number, vehicle: { licensePlate: string; mileage: string; friendlyName?: string }) => {
+    rememberVehiclePlate(vehicle.licensePlate);
+    const currentDay = days[idx];
+    const sameVehicle = (currentDay?.cmvPlate || '').trim().toLowerCase() === vehicle.licensePlate.trim().toLowerCase();
+    updateSelectedDayField(idx, 'cmvPlate', vehicle.licensePlate);
+    updateSelectedDayField(idx, 'vehicleName', vehicle.friendlyName || '');
+    if (sameVehicle && currentDay?.endOdometer) {
+      updateSelectedDayField(idx, 'startOdometer', currentDay.endOdometer);
+      return;
+    }
+    if (sameVehicle && currentDay?.startOdometer) return;
+
+    const latestOdometer = getLatestVehicleOdometer(vehicle.licensePlate, vehicle.mileage);
+    if (latestOdometer) {
+      updateSelectedDayField(idx, 'startOdometer', latestOdometer);
+      const currentDay = days[idx];
+      const end = Number(currentDay?.endOdometer);
+      const start = Number(latestOdometer);
+      if (!currentDay?.endOdometer || end < start) {
+        updateSelectedDayField(idx, 'endOdometer', latestOdometer);
+      }
+    }
+  };
+
   const handleEditLog = async (id: string) => {
     const log = await getLog(id);
     if (log) {
@@ -299,17 +382,46 @@ export default function App() {
         locked: day.locked || isBefore(parseISO(day.date), today),
         metadata: day.metadata ?? log.metadata
       }));
-      setDays(d);
-      setLastSavedLog({ ...log, days: d });
-
-      // Update savedLogs to ensure we have the latest version in the list
-      setSavedLogs(prev => prev.map(l => l.id === log.id ? log : l));
-
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayIdx = d.findIndex(x => x.date === todayStr);
+      const loadedDays = d.map((day, idx) =>
+        idx === (todayIdx >= 0 ? todayIdx : 0)
+          ? applyLastUsedVehicle(day, preferences.defaultCmvPlate || log.metadata.cmvPlate || '')
+          : day
+      );
+      setDays(loadedDays);
+      setLastSavedLog({ ...log, days: loadedDays });
+
+      // Update savedLogs to ensure we have the latest version in the list
+      setSavedLogs(prev => prev.map(l => l.id === log.id ? { ...l, days: loadedDays } : l));
+
       setSelectedDayIndex(todayIdx >= 0 ? todayIdx : 0);
       setView('editor');
     }
+  };
+
+  const selectDay = (idx: number) => {
+    const lastUsedPlate = getLastUsedVehiclePlate();
+    if (lastUsedPlate) {
+      setDays(prev => prev.map((day, dayIdx) => {
+        if (dayIdx !== idx || day.cmvPlate === lastUsedPlate) return day;
+        const isDefaultVehicle = !day.cmvPlate || day.cmvPlate.trim().toLowerCase() === (preferences.defaultCmvPlate || '').trim().toLowerCase();
+        if (!isDefaultVehicle) return day;
+
+        const latestOdometer = getLatestVehicleOdometer(lastUsedPlate);
+        return {
+          ...day,
+          cmvPlate: lastUsedPlate,
+          ...(latestOdometer ? {
+            startOdometer: latestOdometer,
+            endOdometer: !day.endOdometer || Number(day.endOdometer) < Number(latestOdometer)
+              ? latestOdometer
+              : day.endOdometer
+          } : {})
+        };
+      }));
+    }
+    setSelectedDayIndex(idx);
   };
 
   const navigateToDay = async (direction: 'prev' | 'next') => {
@@ -324,7 +436,7 @@ export default function App() {
 
     if (direction === 'next') {
       if (selectedDayIndex < 6) {
-        setSelectedDayIndex(selectedDayIndex + 1);
+        selectDay(selectedDayIndex + 1);
       } else {
         // Cross boundary to next week
         const currentMonday = parseISO(currentId);
@@ -341,7 +453,7 @@ export default function App() {
       }
     } else {
       if (selectedDayIndex > 0) {
-        setSelectedDayIndex(selectedDayIndex - 1);
+        selectDay(selectedDayIndex - 1);
       } else {
         // Cross boundary to prev week
         const currentMonday = parseISO(currentId);
@@ -591,6 +703,147 @@ export default function App() {
     }
   }, [days, metadata, preferences.autoSave]);
 
+  const updateAdditionalVehicle = (dayIdx: number, vehicleIdx: number, field: keyof DayVehicle, value: string) => {
+    setDays(prev => prev.map((day, idx) => {
+      if (idx !== dayIdx) return day;
+      const vehicles = [...(day.additionalVehicles || [])];
+      vehicles[vehicleIdx] = { ...vehicles[vehicleIdx], [field]: value };
+      if (field === 'startOdometer' && value !== '') {
+        const currentEnd = Number(vehicles[vehicleIdx].endOdometer);
+        if (!vehicles[vehicleIdx].endOdometer || currentEnd < Number(value)) {
+          vehicles[vehicleIdx].endOdometer = value;
+        }
+      }
+      if (field === 'endOdometer' && value !== '' && vehicleIdx < vehicles.length - 1) {
+        const nextVehicle = vehicles[vehicleIdx + 1];
+        const currentVehicle = vehicles[vehicleIdx];
+        const sameVehicle = !nextVehicle.cmvPlate ||
+          nextVehicle.cmvPlate.trim().toLowerCase() === currentVehicle.cmvPlate.trim().toLowerCase() ||
+          (!!nextVehicle.friendlyName && !!currentVehicle.friendlyName && nextVehicle.friendlyName.trim().toLowerCase() === currentVehicle.friendlyName.trim().toLowerCase());
+        if (sameVehicle) {
+          nextVehicle.startOdometer = value;
+          if (!nextVehicle.endOdometer || Number(nextVehicle.endOdometer) < Number(value)) {
+            nextVehicle.endOdometer = value;
+          }
+        }
+      }
+      return { ...day, additionalVehicles: vehicles, lastEdited: new Date().toISOString() };
+    }));
+  };
+
+  const addAdditionalVehicle = (dayIdx: number) => {
+    setDays(prev => prev.map((day, idx) => {
+      if (idx !== dayIdx) return day;
+      const existingVehicles = day.additionalVehicles || [];
+      return {
+        ...day,
+        additionalVehicles: [
+          ...existingVehicles,
+          { cmvPlate: '', friendlyName: '', startOdometer: '', endOdometer: '' }
+        ]
+      };
+    }));
+  };
+
+  const removeAdditionalVehicle = (dayIdx: number, vehicleIdx: number) => {
+    setDays(prev => prev.map((day, idx) => idx === dayIdx ? {
+      ...day,
+      additionalVehicles: (day.additionalVehicles || []).filter((_, i) => i !== vehicleIdx),
+      lastEdited: new Date().toISOString()
+    } : day));
+  };
+
+  const requestRemoveAdditionalVehicle = (dayIdx: number, vehicleIdx: number) => {
+    const deleteKey = `${dayIdx}-${vehicleIdx}`;
+    if (pendingAdditionalDeletes[deleteKey]) {
+      removeAdditionalVehicle(dayIdx, vehicleIdx);
+      setPendingAdditionalDeletes(current => Object.fromEntries(
+        Object.entries(current).filter(([key]) => !key.startsWith(`${dayIdx}-`))
+      ));
+      return;
+    }
+
+    setPendingAdditionalDeletes(current => ({ ...current, [deleteKey]: true }));
+    window.setTimeout(() => {
+      setPendingAdditionalDeletes(current => {
+        if (!current[deleteKey]) return current;
+        const next = { ...current };
+        delete next[deleteKey];
+        return next;
+      });
+    }, 4000);
+  };
+
+  const applyAdditionalVehicleSelection = (dayIdx: number, vehicleIdx: number, vehicle: { licensePlate: string; mileage: string; friendlyName?: string }) => {
+    rememberVehiclePlate(vehicle.licensePlate);
+    const currentVehicle = days[dayIdx]?.additionalVehicles?.[vehicleIdx];
+    const sameVehicle = (currentVehicle?.cmvPlate || '').trim().toLowerCase() === vehicle.licensePlate.trim().toLowerCase();
+    updateAdditionalVehicle(dayIdx, vehicleIdx, 'cmvPlate', vehicle.licensePlate);
+    updateAdditionalVehicle(dayIdx, vehicleIdx, 'friendlyName', vehicle.friendlyName || '');
+    const day = days[dayIdx];
+    const previousEnd = [
+      { cmvPlate: day?.cmvPlate, endOdometer: day?.endOdometer },
+      ...(day?.additionalVehicles || []).slice(0, vehicleIdx)
+    ].reverse().find(previous =>
+      (previous.cmvPlate || '').trim().toLowerCase() === vehicle.licensePlate.trim().toLowerCase() && previous.endOdometer
+    )?.endOdometer;
+
+    if (previousEnd) {
+      updateAdditionalVehicle(dayIdx, vehicleIdx, 'startOdometer', previousEnd);
+      updateAdditionalVehicle(dayIdx, vehicleIdx, 'endOdometer', previousEnd);
+      return;
+    }
+    if (sameVehicle && currentVehicle?.endOdometer) {
+      updateAdditionalVehicle(dayIdx, vehicleIdx, 'startOdometer', currentVehicle.endOdometer);
+      return;
+    }
+    if (sameVehicle && currentVehicle?.startOdometer) return;
+
+    const latestOdometer = getLatestVehicleOdometer(vehicle.licensePlate, vehicle.mileage);
+    if (latestOdometer) {
+      updateAdditionalVehicle(dayIdx, vehicleIdx, 'startOdometer', latestOdometer);
+      updateAdditionalVehicle(dayIdx, vehicleIdx, 'endOdometer', latestOdometer);
+    }
+  };
+
+  useEffect(() => {
+    if (days.length === 0) return;
+
+    const normalizedDays = days.map(day => {
+      let previousPlate = (day.cmvPlate || '').trim().toLowerCase();
+      let previousName = (day.vehicleName || '').trim().toLowerCase();
+      let previousEnd = day.endOdometer;
+      let changed = false;
+      const additionalVehicles = (day.additionalVehicles || []).map(vehicle => {
+        const plate = vehicle.cmvPlate.trim().toLowerCase();
+        const name = (vehicle.friendlyName || '').trim().toLowerCase();
+        const sameVehicle = plate && (plate === previousPlate || (!!name && !!previousName && name === previousName));
+        const nextVehicle = { ...vehicle };
+        if (sameVehicle && previousEnd) {
+          if (nextVehicle.startOdometer !== previousEnd) {
+            nextVehicle.startOdometer = previousEnd;
+            changed = true;
+          }
+          if (!nextVehicle.endOdometer || Number(nextVehicle.endOdometer) < Number(previousEnd)) {
+            nextVehicle.endOdometer = previousEnd;
+            changed = true;
+          }
+        }
+        if (plate || name) {
+          previousPlate = plate;
+          previousName = name;
+          previousEnd = nextVehicle.endOdometer;
+        }
+        return nextVehicle;
+      });
+      return changed ? { ...day, additionalVehicles } : day;
+    });
+
+    if (normalizedDays.some((day, index) => day !== days[index])) {
+      setDays(normalizedDays);
+    }
+  }, [days]);
+
   const updateSelectedDayGrid = (idx: number, newGrid: Status[] | ((prev: Status[]) => Status[])) => {
     setDays(prev => {
       const updated = [...prev];
@@ -604,9 +857,30 @@ export default function App() {
     setDays(prev => {
       const updated = [...prev];
       updated[idx] = { ...updated[idx], [field]: value, lastEdited: new Date().toISOString() };
-      if (field === 'endOdometer' && idx < 6) {
-        const next = updated[idx + 1];
-        if (next.sameVehicle !== false && !next.locked) updated[idx + 1] = { ...next, startOdometer: value };
+      if (field === 'startOdometer' && value !== '') {
+        const currentEnd = Number(updated[idx].endOdometer);
+        if (!updated[idx].endOdometer || currentEnd < Number(value)) {
+          updated[idx].endOdometer = value;
+        }
+      }
+      if (field === 'endOdometer') {
+        const currentDay = updated[idx];
+        const firstAdditional = currentDay.additionalVehicles?.[0];
+        const sameVehicle = firstAdditional && (
+          firstAdditional.cmvPlate.trim().toLowerCase() === (currentDay.cmvPlate || '').trim().toLowerCase() ||
+          (!!firstAdditional.friendlyName && !!currentDay.vehicleName && firstAdditional.friendlyName.trim().toLowerCase() === currentDay.vehicleName.trim().toLowerCase())
+        );
+        if (sameVehicle) {
+          firstAdditional.startOdometer = value;
+          if (!firstAdditional.endOdometer || Number(firstAdditional.endOdometer) < Number(value)) {
+            firstAdditional.endOdometer = value;
+          }
+        }
+
+        if (idx < 6) {
+          const next = updated[idx + 1];
+          if (next.sameVehicle !== false && !next.locked) updated[idx + 1] = { ...next, startOdometer: value };
+        }
       }
       if (field === 'sameVehicle' && value === true && idx > 0) {
         const pDay = updated[idx - 1];
@@ -657,173 +931,184 @@ export default function App() {
               {day.locked ? t('locked', preferences.language) : t('finishDay', preferences.language)}
             </button>
           </div>
+        </div>        <div className="input-group" style={{ marginBottom: '1.5rem' }}>
+          <label>{t('remarks', preferences.language)}</label>
+          <textarea
+            value={day.remarks || ''}
+            onChange={e => updateSelectedDayField(idx, 'remarks', e.target.value)}
+            disabled={day.locked}
+            placeholder="..."
+            rows={2}
+          />
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <div className="input-group" style={{ flex: 1, minWidth: '220px' }}>
-            <label>{t('remarks', preferences.language)}</label>
-            <input
-              type="text"
-              value={day.remarks || ''}
-              onChange={e => updateSelectedDayField(idx, 'remarks', e.target.value)}
-              disabled={day.locked}
-              placeholder="..."
-            />
-          </div>
-          <div className="input-group" style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-            <label>CMV Plate</label>
-            <input
-              type="text"
-              value={day.cmvPlate || ''}
-              onChange={e => {
-                const val = e.target.value;
-                updateSelectedDayField(idx, 'cmvPlate', val);
-                setActiveAutocompleteDay(idx);
-                
-                const matchingVehicle = (preferences.userProfile?.vehicles || []).find(
-                  v => v.licensePlate.trim().toLowerCase() === val.trim().toLowerCase()
-                );
-                if (matchingVehicle && matchingVehicle.mileage) {
-                  updateSelectedDayField(idx, 'startOdometer', matchingVehicle.mileage);
-                  const end = Number(day.endOdometer);
-                  const start = Number(matchingVehicle.mileage);
-                  if (!day.endOdometer || end < start) {
-                    updateSelectedDayField(idx, 'endOdometer', matchingVehicle.mileage);
-                  }
-                }
-              }}
-              onFocus={() => setActiveAutocompleteDay(idx)}
-              onBlur={() => {
-                setTimeout(() => {
-                  setActiveAutocompleteDay(null);
-                  
-                  // Auto-save custom vehicle if new
-                  const newPlate = (day.cmvPlate || '').trim();
-                  if (newPlate) {
-                    const exists = (preferences.userProfile?.vehicles || []).some(
-                      v => v.licensePlate.trim().toLowerCase() === newPlate.toLowerCase()
-                    );
-                    if (!exists) {
-                      const formattedDate = format(new Date(), 'yyyy/MM/dd-HH:mm');
-                      const newVehicle = {
-                        id: `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                        friendlyName: formattedDate,
-                        licensePlate: newPlate,
-                        mileage: day.startOdometer || day.endOdometer || '',
-                        vin: '',
-                        operatorName: preferences.defaultOperatorName || '',
-                        inspectionDate: ''
-                      };
-                      
-                      setPreferences(prev => {
-                        const currentProfile = prev.userProfile || DEFAULT_PREFS.userProfile;
-                        return {
-                          ...prev,
-                          userProfile: {
-                            ...currentProfile,
-                            vehicles: [...(currentProfile.vehicles || []), newVehicle]
-                          }
-                        };
-                      });
+        <div className="vehicle-entry-group" style={{ marginBottom: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div className="input-group" style={{ flex: 2, minWidth: '220px', position: 'relative' }}>
+              <label>{day.vehicleName ? 'Vehicle' : 'CMV Plate'}</label>
+              <input
+                type="text"
+                value={day.vehicleName ? `${day.vehicleName} (${day.cmvPlate})` : (day.cmvPlate || '')}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (day.vehicleName) updateSelectedDayField(idx, 'vehicleName', '');
+                  updateSelectedDayField(idx, 'cmvPlate', val);
+                  setActiveAutocompleteDay(idx);
+                  const matchingVehicle = (preferences.userProfile?.vehicles || []).find(
+                    v => v.licensePlate.trim().toLowerCase() === val.trim().toLowerCase()
+                  );
+                if (matchingVehicle && (day.cmvPlate || '').trim().toLowerCase() !== matchingVehicle.licensePlate.trim().toLowerCase()) {
+                  rememberVehiclePlate(matchingVehicle.licensePlate);
+                  const latestOdometer = getLatestVehicleOdometer(matchingVehicle.licensePlate, matchingVehicle.mileage);
+                    if (latestOdometer) {
+                      updateSelectedDayField(idx, 'startOdometer', latestOdometer);
+                      const end = Number(day.endOdometer);
+                      if (!day.endOdometer || end < Number(latestOdometer)) {
+                        updateSelectedDayField(idx, 'endOdometer', latestOdometer);
+                      }
                     }
                   }
-                }, 200);
-              }}
-              disabled={day.locked}
-              placeholder="CMV Plate"
-              style={{ width: '100%' }}
-            />
-            {activeAutocompleteDay === idx && (preferences.userProfile?.vehicles || []).length > 0 && (
-              <div 
-                className="autocomplete-dropdown"
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  width: '100%',
-                  background: 'var(--glass-bg)',
-                  backdropFilter: 'blur(16px)',
-                  border: '1px solid var(--glass-border)',
-                  borderRadius: '8px',
-                  marginTop: '4px',
-                  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
-                  zIndex: 1000,
-                  maxHeight: '200px',
-                  overflowY: 'auto'
                 }}
-              >
-                {(preferences.userProfile?.vehicles || [])
-                  .filter(v => {
+                onFocus={() => {
+                  if (day.vehicleName) updateSelectedDayField(idx, 'vehicleName', '');
+                  setActiveAutocompleteDay(idx);
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setActiveAutocompleteDay(null);
+                    const newPlate = (day.cmvPlate || '').trim();
+                    if (newPlate) {
+                      rememberVehiclePlate(newPlate);
+                      const exists = (preferences.userProfile?.vehicles || []).some(v => v.licensePlate.trim().toLowerCase() === newPlate.toLowerCase());
+                      if (!exists) {
+                        const newVehicle = {
+                          id: `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                          friendlyName: format(new Date(), 'yyyy/MM/dd-HH:mm'),
+                          licensePlate: newPlate,
+                          mileage: day.startOdometer || day.endOdometer || '',
+                          vin: '', operatorName: preferences.defaultOperatorName || '', inspectionDate: ''
+                        };
+                        setPreferences(prev => ({
+                          ...prev,
+                          userProfile: { ...(prev.userProfile || DEFAULT_PREFS.userProfile), vehicles: [...(prev.userProfile?.vehicles || []), newVehicle] }
+                        }));
+                      }
+                    }
+                  }, 200);
+                }}
+                disabled={day.locked}
+                placeholder="CMV Plate"
+                style={{ width: '100%' }}
+              />
+              {activeAutocompleteDay === idx && (preferences.userProfile?.vehicles || []).length > 0 && (
+                <div className="autocomplete-dropdown" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--glass-bg)', backdropFilter: 'blur(16px)', border: '1px solid var(--glass-border)', borderRadius: '8px', marginTop: '4px', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)', zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
+                  {(preferences.userProfile?.vehicles || []).filter(v => {
                     const search = (day.cmvPlate || '').trim().toLowerCase();
-                    if (!search) return true;
-                    return v.licensePlate.toLowerCase().includes(search) || 
-                           v.friendlyName.toLowerCase().includes(search);
-                  })
-                  .map(v => (
-                    <div
-                      key={v.id}
-                      onClick={() => {
-                        updateSelectedDayField(idx, 'cmvPlate', v.licensePlate);
-                        if (v.mileage) {
-                          updateSelectedDayField(idx, 'startOdometer', v.mileage);
-                          const end = Number(day.endOdometer);
-                          const start = Number(v.mileage);
-                          if (!day.endOdometer || end < start) {
-                            updateSelectedDayField(idx, 'endOdometer', v.mileage);
-                          }
-                        }
-                        setActiveAutocompleteDay(null);
-                      }}
-                      style={{
-                        padding: '0.75rem 1rem',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        borderBottom: '1px solid var(--glass-border)',
-                        color: 'var(--text-primary)',
-                        transition: 'background 0.2s',
-                        textAlign: 'left'
-                      }}
-                      className="autocomplete-option"
-                    >
+                    return !search || v.licensePlate.toLowerCase().includes(search) || v.friendlyName.toLowerCase().includes(search);
+                  }).map(v => (
+                    <div key={v.id} onClick={() => { applyVehicleSelection(idx, v); setActiveAutocompleteDay(null); }} style={{ padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-primary)', textAlign: 'left' }} className="autocomplete-option">
                       {v.friendlyName ? `${v.friendlyName} (${v.licensePlate})` : v.licensePlate}
                     </div>
-                  ))
-                }
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
+              <label>{t('startOdo', preferences.language)}</label>
+              <input type="number" value={day.startOdometer || ''} onChange={e => updateSelectedDayField(idx, 'startOdometer', e.target.value)} disabled={day.locked} />
+            </div>
+            <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
+              <label>{t('endOdo', preferences.language)}</label>
+              <input type="number" value={day.endOdometer || ''} onChange={e => updateSelectedDayField(idx, 'endOdometer', e.target.value)} disabled={day.locked} />
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', overflow: 'hidden' }}>
-          <div className="input-group" style={{ flex: 1, minWidth: 0, width: '50%' }}>
-            <label>{t('startOdo', preferences.language)}</label>
-            <input
-              type="number"
-              value={day.startOdometer || ''}
-              onChange={e => updateSelectedDayField(idx, 'startOdometer', e.target.value)}
-              onBlur={e => {
-                const s = Number(e.target.value);
-                const end = Number(day.endOdometer);
-                if (day.endOdometer && end < s) updateSelectedDayField(idx, 'endOdometer', s.toString());
-              }}
-              disabled={day.locked}
-            />
+        {(day.additionalVehicles || []).map((vehicle, vehicleIdx) => (
+          <div className="additional-vehicle-entry" key={`${day.date}-vehicle-${vehicleIdx}`}>
+              <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', zIndex: 1 }}>
+                <button
+                  type="button"
+                  className={`icon-btn ${pendingAdditionalDeletes[`${idx}-${vehicleIdx}`] ? 'delete-confirm' : ''}`}
+                  onClick={() => requestRemoveAdditionalVehicle(idx, vehicleIdx)}
+                  disabled={day.locked}
+                  title={pendingAdditionalDeletes[`${idx}-${vehicleIdx}`] ? 'Click again to confirm removal' : 'Remove vehicle'}
+                >
+                  {pendingAdditionalDeletes[`${idx}-${vehicleIdx}`] ? <Trash2 size={15} /> : <X size={15} />}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <div className="input-group" style={{ flex: 2, minWidth: '220px', position: 'relative' }}>
+                  <label>{vehicle.friendlyName ? 'Vehicle' : 'CMV Plate'}</label>
+                  <input
+                    type="text"
+                    value={vehicle.friendlyName ? `${vehicle.friendlyName} (${vehicle.cmvPlate})` : vehicle.cmvPlate}
+                    onChange={e => {
+                      const value = e.target.value;
+                      if (vehicle.friendlyName) updateAdditionalVehicle(idx, vehicleIdx, 'friendlyName', '');
+                      updateAdditionalVehicle(idx, vehicleIdx, 'cmvPlate', value);
+                      setActiveAdditionalAutocomplete({ dayIndex: idx, vehicleIndex: vehicleIdx });
+                      const matchingVehicle = (preferences.userProfile?.vehicles || []).find(v => v.licensePlate.trim().toLowerCase() === value.trim().toLowerCase());
+                      if (matchingVehicle) applyAdditionalVehicleSelection(idx, vehicleIdx, matchingVehicle);
+                    }}
+                    onFocus={() => {
+                      if (vehicle.friendlyName) updateAdditionalVehicle(idx, vehicleIdx, 'friendlyName', '');
+                      setActiveAdditionalAutocomplete({ dayIndex: idx, vehicleIndex: vehicleIdx });
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => {
+                        setActiveAdditionalAutocomplete(null);
+                        const plate = vehicle.cmvPlate.trim();
+                        if (!plate) return;
+                        rememberVehiclePlate(plate);
+                        const exists = (preferences.userProfile?.vehicles || []).some(v => v.licensePlate.trim().toLowerCase() === plate.toLowerCase());
+                        if (!exists) {
+                          const newVehicle = {
+                            id: `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            friendlyName: format(new Date(), 'yyyy/MM/dd-HH:mm'),
+                            licensePlate: plate,
+                            mileage: vehicle.startOdometer || vehicle.endOdometer || '',
+                            vin: '', operatorName: preferences.defaultOperatorName || '', inspectionDate: ''
+                          };
+                          setPreferences(prev => ({
+                            ...prev,
+                            userProfile: { ...(prev.userProfile || DEFAULT_PREFS.userProfile), vehicles: [...(prev.userProfile?.vehicles || []), newVehicle] }
+                          }));
+                        }
+                      }, 200);
+                    }}
+                    disabled={day.locked}
+                  />
+                  {activeAdditionalAutocomplete?.dayIndex === idx && activeAdditionalAutocomplete.vehicleIndex === vehicleIdx && (preferences.userProfile?.vehicles || []).length > 0 && (
+                    <div className="autocomplete-dropdown" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--glass-bg)', backdropFilter: 'blur(16px)', border: '1px solid var(--glass-border)', borderRadius: '8px', marginTop: '4px', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)', zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
+                      {(preferences.userProfile?.vehicles || []).filter(v => {
+                        const search = vehicle.cmvPlate.trim().toLowerCase();
+                        return !search || v.licensePlate.toLowerCase().includes(search) || v.friendlyName.toLowerCase().includes(search);
+                      }).map(v => (
+                        <div key={v.id} onMouseDown={e => e.preventDefault()} onClick={() => { applyAdditionalVehicleSelection(idx, vehicleIdx, v); setActiveAdditionalAutocomplete(null); }} style={{ padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-primary)', textAlign: 'left' }} className="autocomplete-option">
+                          {v.friendlyName ? `${v.friendlyName} (${v.licensePlate})` : v.licensePlate}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
+                  <label>{t('startOdo', preferences.language)}</label>
+                  <input type="number" value={vehicle.startOdometer} onChange={e => updateAdditionalVehicle(idx, vehicleIdx, 'startOdometer', e.target.value)} disabled={day.locked} />
+                </div>
+                <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
+                  <label>{t('endOdo', preferences.language)}</label>
+                  <input type="number" value={vehicle.endOdometer} onChange={e => updateAdditionalVehicle(idx, vehicleIdx, 'endOdometer', e.target.value)} disabled={day.locked} />
+                </div>
+            </div>
           </div>
-          <div className="input-group" style={{ flex: 1, minWidth: 0, width: '50%' }}>
-            <label>{t('endOdo', preferences.language)}</label>
-            <input
-              type="number"
-              value={day.endOdometer || ''}
-              onChange={e => updateSelectedDayField(idx, 'endOdometer', e.target.value)}
-              onBlur={e => {
-                const end = Number(e.target.value);
-                const s = Number(day.startOdometer);
-                if (day.startOdometer && end < s) updateSelectedDayField(idx, 'endOdometer', s.toString());
-              }}
-              disabled={day.locked}
-            />
-          </div>
-        </div>
+        ))}
+
+        {preferences.showSameVehicle && (
+          <button type="button" className="add-vehicle-btn" onClick={() => addAdditionalVehicle(idx)} disabled={day.locked}>
+            <Plus size={16} /> Add another vehicle
+          </button>
+        )}
 
         <Grid
           grid={day.grid}
@@ -841,6 +1126,7 @@ export default function App() {
               preferences={preferences}
               startOdometer={day.startOdometer}
               endOdometer={day.endOdometer}
+              additionalVehicles={day.additionalVehicles}
               homeTerminalAddress={metadata.homeTerminalAddress}
               variant="grid"
             />
@@ -864,10 +1150,10 @@ export default function App() {
       />
 
       <div className="main-content">
-        {(offlineReady || needRefresh || !isOnline || installPrompt || (!isStandalone && showInstallBanner)) && (
-          <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || installPrompt ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || installPrompt ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-            {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : installPrompt ? (<><Plus size={16} /> <span>Install App</span> <button onClick={handleInstallClick}>Install</button></>) : null}
-            <button style={{ background: 'none', border: 'none' }} onClick={() => setShowInstallBanner(false)}>✕</button>
+        {(offlineReady || needRefresh || !isOnline || (installPrompt && showInstallBanner)) && (
+          <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || (installPrompt && showInstallBanner) ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || (installPrompt && showInstallBanner) ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+            {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : (installPrompt && showInstallBanner) ? (<><Plus size={16} /> <span>Install App</span> <button className="btn-primary" onClick={handleInstallClick} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>Install</button></>) : null}
+            <button className="close-btn" onClick={() => { setShowInstallBanner(false); localStorage.setItem('hide-install-banner', 'true'); }}><X size={14} /></button>
           </div>
         )}
 
@@ -1109,6 +1395,7 @@ export default function App() {
                     preferences={preferences}
                     startOdometer={days[selectedDayIndex].startOdometer}
                     endOdometer={days[selectedDayIndex].endOdometer}
+                    additionalVehicles={days[selectedDayIndex].additionalVehicles}
                     homeTerminalAddress={metadata.homeTerminalAddress}
                     variant="compact"
                   />

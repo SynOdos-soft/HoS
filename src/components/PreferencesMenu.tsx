@@ -16,6 +16,18 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-09-19',
+    features: [
+      'Daily multi-vehicle logging with saved vehicle dropdowns, familiar vehicle names, and per-vehicle odometers.',
+      'Sequential odometer tracking carries each vehicle’s end reading into the next matching vehicle start reading.',
+      'PDF exports now include consistent vehicle details, full dates, wrapped remarks, operator information, and total distance.'
+    ],
+    fixes: [
+      'Improved additional-vehicle editing, deletion confirmation, and saved vehicle handling.'
+    ]
+  },
+  {
+    version: '0.16.3',
     date: '2026-06-26',
     features: [
       'Daily-level Metadata Editing: metadata (Operator name, addresses, CMV plate, etc.) can now be edited and saved independently for each day of the week, supporting drivers with changing daily routes and vehicles.'
@@ -349,7 +361,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.showSameVehicle} onChange={() => toggleBoolean('showSameVehicle')} />
-                  Show Same Vehicle Checkbox
+                  Show additional vehicles
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.showTimestamps} onChange={() => toggleBoolean('showTimestamps')} />
