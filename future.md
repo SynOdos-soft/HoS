@@ -5,7 +5,10 @@ what exists today: weekly log grid, roadside inspection view, audit trail with r
 codes, auto-locking, PDF exports, encrypted Google Drive sync, saved vehicles and
 operator companies, presets.
 
-_Last updated: 2026-09-20 (v0.21.0)_
+_Last updated: 2026-09-20 (v0.21.1)_
+
+> ✅ Done in **v0.21.1**: **PWA update flow** — prompted service worker updates with
+> an "Update to vX.Y.Z" banner (vite-plugin-pwa `registerType: 'prompt'`).
 
 ---
 
@@ -80,8 +83,6 @@ _Last updated: 2026-09-20 (v0.21.0)_
   and menu-jump bugs).
 - **Storage migrations framework** — versioned preferences/log schema with purge of
   retired keys (default operator/plate fields still linger in storage).
-- **PWA update flow** — detect new service worker and offer "Update to vX.Y.Z"
-  instead of serving stale assets until tabs are closed.
 - **Performance** — virtualize the 15-day inspection grid and lazy-load the PDF
   library (biggest bundles today).
 
