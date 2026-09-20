@@ -7,7 +7,7 @@ import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, DayVehicle, Preferences, DEFAULT_PREFS, AuditEntry, APP_VERSION } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase, X } from 'lucide-react';
+import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase, X, RefreshCw } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -34,6 +34,9 @@ const DEFAULT_METADATA: WeeklyMetadata = {
 };
 
 const LAST_USED_VEHICLE_KEY = 'hos-last-used-vehicle-plate';
+
+/** Periodic service worker update check while the app stays open. */
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 const getLastUsedVehiclePlate = (fallback = '') =>
   localStorage.getItem(LAST_USED_VEHICLE_KEY) || fallback;
@@ -116,7 +119,43 @@ export default function App() {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
   }, []);
 
-  const { offlineReady: [offlineReady], needRefresh: [needRefresh] } = useRegisterSW();
+  const { offlineReady: [offlineReady], needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(_url, registration) {
+      if (!registration) return;
+      const checkForUpdates = () => { registration.update().catch(() => {}); };
+      // Refresh check on each app open / tab focus, plus a safety net while long-lived
+      // tabs stay open (drivers may keep a week open for days without a reload).
+      window.addEventListener('focus', checkForUpdates);
+      window.addEventListener('online', checkForUpdates);
+      checkForUpdates();
+      const interval = window.setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
+      const stop = () => {
+        window.clearInterval(interval);
+        window.removeEventListener('focus', checkForUpdates);
+        window.removeEventListener('online', checkForUpdates);
+      };
+      registration.addEventListener('updatefound', stop, { once: true });
+    },
+  });
+
+  const [newVersion, setNewVersion] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [swDismmissed, setSwDismmissed] = useState(false);
+
+  useEffect(() => {
+    if (!needRefresh) return;
+    let cancelled = false;
+    fetch('version.json', { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (!cancelled && data?.version) setNewVersion(String(data.version)); })
+      .catch(() => {}); // banner still works without a version label
+    return () => { cancelled = true; };
+  }, [needRefresh]);
+
+  const handleUpdateClick = () => {
+    setIsUpdating(true);
+    updateServiceWorker(true); // reloads the page once the waiting worker takes over
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -1152,10 +1191,16 @@ export default function App() {
       />
 
       <div className="main-content">
-        {(offlineReady || needRefresh || !isOnline || (installPrompt && showInstallBanner)) && (
+        {((needRefresh && !swDismmissed) || offlineReady || !isOnline || (installPrompt && showInstallBanner)) && (
           <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || (installPrompt && showInstallBanner) ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || (installPrompt && showInstallBanner) ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-            {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>) : (installPrompt && showInstallBanner) ? (<><Plus size={16} /> <span>Install App</span> <button className="btn-primary" onClick={handleInstallClick} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>Install</button></>) : null}
-            <button className="close-btn" onClick={() => { setShowInstallBanner(false); localStorage.setItem('hide-install-banner', 'true'); }}><X size={14} /></button>
+            {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>)
+              : needRefresh ? (<>
+                <RefreshCw size={16} />
+                <span>{isUpdating ? 'Updating…' : newVersion && newVersion !== APP_VERSION ? `Update to v${newVersion} available` : 'A new version is available'}</span>
+                <button className="btn-primary" onClick={handleUpdateClick} disabled={isUpdating} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>{isUpdating ? 'Updating…' : 'Update now'}</button>
+              </>)
+              : (installPrompt && showInstallBanner) ? (<><Plus size={16} /> <span>Install App</span> <button className="btn-primary" onClick={handleInstallClick} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>Install</button></>) : null}
+            <button className="close-btn" aria-label="Dismiss" onClick={() => { if (needRefresh) { setSwDismmissed(true); } else { setShowInstallBanner(false); localStorage.setItem('hide-install-banner', 'true'); } }}><X size={14} /></button>
           </div>
         )}
 

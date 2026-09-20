@@ -1,14 +1,29 @@
 import path from "path"
-import { defineConfig } from 'vite'
+import { readFileSync } from 'node:fs'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as { version: string }
+
+/** Writes the app version to dist so the client can show "Update to vX.Y.Z" when a new service worker is waiting. */
+const emitVersionFile = (): Plugin => ({
+  name: 'emit-version-file',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: pkg.version }) })
+  },
+})
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    emitVersionFile(),
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' keeps the old service worker active until the driver accepts
+      // the "Update to vX.Y.Z" banner, so an open log is never hot-swapped mid-week.
+      registerType: 'prompt',
       includeAssets: ['vite.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Synodos | Log',

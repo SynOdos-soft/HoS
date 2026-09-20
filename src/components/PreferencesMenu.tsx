@@ -18,6 +18,13 @@ const VERSIONS = [
   {
     version: APP_VERSION,
     date: '2026-09-20',
+    fixes: [
+      'Fixed app updates: new versions now announce themselves with an "Update to vX.Y.Z" banner instead of being served stale assets until every tab was closed. Update when you are ready — your open log is never disturbed.'
+    ]
+  },
+  {
+    version: '0.21.0',
+    date: '2026-09-20',
     features: [
       'Operator name in the daily log now autocompletes from your saved Operator Companies, filling business address and home terminal in one pick.',
       'Settings restructured: Defaults tab removed — Default Cycle moved to General, and operator/plate fields retired in favor of saved companies and vehicles.',
@@ -521,7 +528,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                         </div>
                       )}
 
-                      {v.features.length > 0 && (
+                      {v.features && v.features.length > 0 && (
                         <div style={{ marginBottom: '0.5rem' }}>
                           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-green)', textTransform: 'uppercase' }}>Features</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
@@ -530,7 +537,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                         </div>
                       )}
 
-                      {v.fixes.length > 0 && (
+                      {v.fixes && v.fixes.length > 0 && (
                         <div>
                           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>Fixes</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
