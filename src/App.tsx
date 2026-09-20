@@ -106,8 +106,8 @@ export default function App() {
     return localStorage.getItem('hide-install-banner') !== 'true';
   });
   const [deleteStatuses, setDeleteStatuses] = useState<Record<string, 'idle' | 'loading' | 'confirm'>>({});
-  const [pendingNav, setPendingNav] = useState<{ type: 'day' | 'view' | 'active', value: any, tab?: 'general' | 'defaults' | 'install' | 'version' } | null>(null);
-  const [prefTab, setPrefTab] = useState<'general' | 'defaults' | 'install' | 'version'>('general');
+  const [pendingNav, setPendingNav] = useState<{ type: 'day' | 'view' | 'active', value: any, tab?: 'general' | 'trucking' | 'install' | 'version' } | null>(null);
+  const [prefTab, setPrefTab] = useState<'general' | 'trucking' | 'install' | 'version'>('general');
   const [pendingReasonAction, setPendingReasonAction] = useState<(() => void) | null>(null);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [pendingUnlockIdx, setPendingUnlockIdx] = useState<number | null>(null);
@@ -284,7 +284,7 @@ export default function App() {
     });
   };
 
-  const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences', tab?: 'general' | 'defaults' | 'install' | 'version') => {
+  const handleGlobalNavigate = (newView: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences', tab?: 'general' | 'trucking' | 'install' | 'version') => {
     if (view === 'editor' && hasUnsavedLockedChanges() && newView !== 'editor') {
       setPendingNav({ type: 'view', value: newView, tab });
       setIsReasonModalOpen(true);
@@ -655,7 +655,7 @@ export default function App() {
     }
   };
 
-  const executeViewNav = (newView: any, tab?: 'general' | 'defaults' | 'install' | 'version') => {
+  const executeViewNav = (newView: any, tab?: 'general' | 'trucking' | 'install' | 'version') => {
     if (newView === 'editor') navigateToActiveDaily();
     else {
       if (tab) setPrefTab(tab);

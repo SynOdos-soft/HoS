@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Preferences, APP_VERSION } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, Save, FileText, Download, Info } from 'lucide-react';
+import { Settings, Save, Download, Info, SlidersHorizontal } from 'lucide-react';
 import { useDragScroll } from '../lib/useDragScroll';
 
 interface PreferencesMenuProps {
@@ -11,12 +11,24 @@ interface PreferencesMenuProps {
   installPrompt?: any;
   isStandalone?: boolean;
   onInstall?: () => void;
-  initialTab?: 'general' | 'defaults' | 'install' | 'version';
+  initialTab?: 'general' | 'trucking' | 'install' | 'version';
 }
 
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-09-20',
+    features: [
+      'Operator name in the daily log now autocompletes from your saved Operator Companies, filling business address and home terminal in one pick.',
+      'Settings restructured: Defaults tab removed — Default Cycle moved to General, and operator/plate fields retired in favor of saved companies and vehicles.',
+      'Trucking Features has its own dedicated tab in System Settings.'
+    ],
+    fixes: [
+      'Removed redundant default operator/plate settings that duplicated saved company and vehicle data.'
+    ]
+  },
+  {
+    version: '0.20.0',
     date: '2026-09-20',
     ui: [
       'Complete UI unification: shared design tokens for radius, spacing, fonts, and colors across every view.',
@@ -304,10 +316,8 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   preferences, setPreferences, onClose,
   installPrompt, isStandalone, onInstall, initialTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'install' | 'version'>(initialTab || 'general');
+  const [activeTab, setActiveTab] = useState<'general' | 'trucking' | 'install' | 'version'>(initialTab || 'general');
   const tabRow = useDragScroll<HTMLDivElement>();
-  const [activeAutocomplete, setActiveAutocomplete] = useState<boolean>(false);
-
   const toggleBoolean = (key: keyof Preferences) => {
     setPreferences({ ...preferences, [key]: !preferences[key] });
   };
@@ -318,7 +328,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
   const tabs = [
     { id: 'general', label: 'General', icon: Settings },
-    { id: 'defaults', label: 'Defaults', icon: FileText },
+    { id: 'trucking', label: 'Trucking Features', icon: SlidersHorizontal },
     ...(!isStandalone ? [{ id: 'install', label: 'Install', icon: Download }] : []),
     { id: 'version', label: 'Version', icon: Info },
   ] as const;
@@ -383,6 +393,13 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                     <option value={0}>Sunday</option>
                   </select>
                 </div>
+                <div className="input-group">
+                  <label>Default Cycle</label>
+                  <select value={preferences.defaultCycle || '7-Day'} onChange={(e) => setString('defaultCycle', e.target.value)}>
+                    <option value="7-Day">7-Day</option>
+                    <option value="14-Day">14-Day</option>
+                  </select>
+                </div>
 
                 <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
 
@@ -413,123 +430,50 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
               </div>
             )}
 
-            {activeTab === 'defaults' && (
+            {activeTab === 'trucking' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Default Log Details</h3>
-                <div className="input-group">
-                  <label>Default Cycle</label>
-                  <select value={preferences.defaultCycle || '7-Day'} onChange={(e) => setString('defaultCycle', e.target.value)}>
-                    <option value="7-Day">7-Day</option>
-                    <option value="14-Day">14-Day</option>
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label>Operator Name</label>
-                  <input type="text" value={preferences.defaultOperatorName || ''} onChange={(e) => setString('defaultOperatorName', e.target.value)} />
-                </div>
-                <div className="input-group">
-                  <label>Operator Business Address</label>
-                  <input type="text" value={preferences.defaultOperatorBusinessAddress || ''} onChange={(e) => setString('defaultOperatorBusinessAddress', e.target.value)} />
-                </div>
-                <div className="input-group">
-                  <label>Home Terminal Address</label>
-                  <input type="text" value={preferences.defaultHomeTerminalAddress || ''} onChange={(e) => setString('defaultHomeTerminalAddress', e.target.value)} />
-                </div>
-                <div className="input-group" style={{ position: 'relative' }}>
-                  <label>CMV Plate</label>
-                  <input 
-                    type="text" 
-                    value={preferences.defaultCmvPlate || ''} 
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setString('defaultCmvPlate', val);
-                      setActiveAutocomplete(true);
-                      
-                      const matchingVehicle = (preferences.userProfile?.vehicles || []).find(
-                        v => v.licensePlate.trim().toLowerCase() === val.trim().toLowerCase()
-                      );
-                      if (matchingVehicle) {
-                        const updates: Partial<Preferences> = {};
-                        if (matchingVehicle.operatorName && !preferences.defaultOperatorName) {
-                          updates.defaultOperatorName = matchingVehicle.operatorName;
-                        }
-                        setPreferences({
-                          ...preferences,
-                          defaultCmvPlate: val,
-                          ...updates
-                        });
-                      }
-                    }} 
-                    onFocus={() => setActiveAutocomplete(true)}
-                    onBlur={() => {
-                      setTimeout(() => setActiveAutocomplete(false), 200);
-                    }}
-                    placeholder="CMV Plate"
-                    style={{ width: '100%' }}
-                  />
-                  {activeAutocomplete && (preferences.userProfile?.vehicles || []).length > 0 && (
-                    <div 
-                      className="autocomplete-dropdown"
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        width: '100%',
-                        background: 'var(--glass-bg)',
-                        backdropFilter: 'blur(16px)',
-                        border: '1px solid var(--glass-border)',
-                        borderRadius: '8px',
-                        marginTop: '4px',
-                        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
-                        zIndex: 1000,
-                        maxHeight: '200px',
-                        overflowY: 'auto'
-                      }}
-                    >
-                      {(preferences.userProfile?.vehicles || [])
-                        .filter(v => {
-                          const search = (preferences.defaultCmvPlate || '').trim().toLowerCase();
-                          if (!search) return true;
-                          return v.licensePlate.toLowerCase().includes(search) || 
-                                 v.friendlyName.toLowerCase().includes(search);
-                        })
-                        .map(v => (
-                          <div
-                            key={v.id}
-                            onClick={() => {
-                              setString('defaultCmvPlate', v.licensePlate);
-                              
-                              const updates: Partial<Preferences> = {};
-                              if (v.operatorName && !preferences.defaultOperatorName) {
-                                updates.defaultOperatorName = v.operatorName;
-                              }
-                              setPreferences({
-                                ...preferences,
-                                defaultCmvPlate: v.licensePlate,
-                                ...updates
-                              });
-                              setActiveAutocomplete(false);
-                            }}
-                            style={{
-                              padding: '0.75rem 1rem',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem',
-                              borderBottom: '1px solid var(--glass-border)',
-                              color: 'var(--text-primary)',
-                              transition: 'background 0.2s',
-                              textAlign: 'left'
-                            }}
-                            className="autocomplete-option"
-                          >
-                            {v.friendlyName ? `${v.friendlyName} (${v.licensePlate})` : v.licensePlate}
-                          </div>
-                        ))
-                      }
-                    </div>
-                  )}
+                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Trucking Features</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+                  Toggle visibility for specific HOS fields and features on the dashboard.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={preferences.showCoDrivers}
+                      onChange={() => toggleBoolean('showCoDrivers')}
+                    />
+                    Show Co-Driver(s)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={preferences.showTrailerPlate}
+                      onChange={() => toggleBoolean('showTrailerPlate')}
+                    />
+                    Show Trailer Plate
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={preferences.showExempt}
+                      onChange={() => toggleBoolean('showExempt')}
+                    />
+                    Show Exempt Hrs
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={preferences.showSleeper}
+                      onChange={() => toggleBoolean('showSleeper')}
+                    />
+                    Show Sleeper Row
+                  </label>
                 </div>
               </div>
             )}
+
+
 
 
             {activeTab === 'install' && !isStandalone && (

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Preferences, VehicleProfile, OperatorCompany, WeeklyLog } from '../types';
-import { Save, Plus, Trash2, Pencil, X, Cloud, Lock, CheckCircle, AlertCircle, User, Truck, SlidersHorizontal, Building2 } from 'lucide-react';
+import { Save, Plus, Trash2, Pencil, X, Cloud, Lock, CheckCircle, AlertCircle, User, Truck, Building2 } from 'lucide-react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { uploadToGoogleDrive, downloadFromGoogleDrive, encryptData, decryptData } from '../utils/cloudSync';
 import { saveLogsBulk } from '../utils/storage';
@@ -29,12 +29,11 @@ const TABS = [
   { id: 'personal', label: 'Personal Info', icon: User },
   { id: 'vehicles', label: 'My Vehicles', icon: Truck },
   { id: 'companies', label: 'Operator Companies', icon: Building2 },
-  { id: 'trucking', label: 'Trucking Features', icon: SlidersHorizontal },
   { id: 'sync', label: 'Cloud Sync', icon: Cloud },
 ] as const;
 
 export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences, onClose, logs = [] }) => {
-  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles' | 'companies' | 'trucking' | 'sync'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles' | 'companies' | 'sync'>('personal');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncMessage, setSyncMessage] = useState('');
   const [pendingSyncAction, setPendingSyncAction] = useState<'backup' | 'restore' | null>(null);
@@ -716,49 +715,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {activeTab === 'trucking' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Trucking Features</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '-0.75rem' }}>
-                Toggle visibility for specific HOS fields and features on the dashboard.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={preferences.showCoDrivers} 
-                    onChange={() => setPreferences(prev => ({ ...prev, showCoDrivers: !prev.showCoDrivers }))} 
-                  />
-                  Show Co-Driver(s)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={preferences.showTrailerPlate} 
-                    onChange={() => setPreferences(prev => ({ ...prev, showTrailerPlate: !prev.showTrailerPlate }))} 
-                  />
-                  Show Trailer Plate
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={preferences.showExempt} 
-                    onChange={() => setPreferences(prev => ({ ...prev, showExempt: !prev.showExempt }))} 
-                  />
-                  Show Exempt Hrs
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={preferences.showSleeper} 
-                    onChange={() => setPreferences(prev => ({ ...prev, showSleeper: !prev.showSleeper }))} 
-                  />
-                  Show Sleeper Row
-                </label>
-              </div>
             </div>
           )}
 
