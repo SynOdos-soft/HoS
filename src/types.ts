@@ -67,6 +67,13 @@ export interface VehicleProfile {
   inspectionDate: string;
 }
 
+export interface OperatorCompany {
+  id: string;
+  name: string;
+  businessAddress: string;
+  homeTerminalAddress: string;
+}
+
 export interface UserProfile {
   name: string;
   email: string;
@@ -76,6 +83,7 @@ export interface UserProfile {
   medicalExpiry: string;
   firstAidExpiry: string;
   vehicles: VehicleProfile[];
+  operatorCompanies: OperatorCompany[];
 }
 
 export interface Preferences {
@@ -139,8 +147,9 @@ export const DEFAULT_PREFS: Preferences = {
     licenseExpiry: '',
     medicalExpiry: '',
     firstAidExpiry: '',
-    vehicles: []
+    vehicles: [],
+    operatorCompanies: []
   }
 };
 
-export const APP_VERSION = '0.17.0';
+export const APP_VERSION = '0.20.0';

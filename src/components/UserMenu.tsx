@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Preferences, VehicleProfile, WeeklyLog } from '../types';
-import { Save, Plus, Trash2, Pencil, X, Cloud, Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Preferences, VehicleProfile, OperatorCompany, WeeklyLog } from '../types';
+import { Save, Plus, Trash2, Pencil, X, Cloud, Lock, CheckCircle, AlertCircle, User, Truck, SlidersHorizontal, Building2 } from 'lucide-react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { uploadToGoogleDrive, downloadFromGoogleDrive, encryptData, decryptData } from '../utils/cloudSync';
 import { saveLogsBulk } from '../utils/storage';
+import { useDragScroll } from '../lib/useDragScroll';
 
 interface UserMenuProps {
   preferences: Preferences;
@@ -24,8 +25,16 @@ const OCCUPATIONS = [
   'Heavy Equipment Operator'
 ];
 
+const TABS = [
+  { id: 'personal', label: 'Personal Info', icon: User },
+  { id: 'vehicles', label: 'My Vehicles', icon: Truck },
+  { id: 'companies', label: 'Operator Companies', icon: Building2 },
+  { id: 'trucking', label: 'Trucking Features', icon: SlidersHorizontal },
+  { id: 'sync', label: 'Cloud Sync', icon: Cloud },
+] as const;
+
 export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences, onClose, logs = [] }) => {
-  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles' | 'trucking' | 'sync'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles' | 'companies' | 'trucking' | 'sync'>('personal');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncMessage, setSyncMessage] = useState('');
   const [pendingSyncAction, setPendingSyncAction] = useState<'backup' | 'restore' | null>(null);
@@ -149,6 +158,28 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
   const [newVehicle, setNewVehicle] = useState<Omit<VehicleProfile, 'id'>>({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' });
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+  const [showVehicleForm, setShowVehicleForm] = useState(false);
+
+  const tabRow = useDragScroll<HTMLDivElement>();
+
+  const [newCompany, setNewCompany] = useState<Omit<OperatorCompany, 'id'>>({ name: '', businessAddress: '', homeTerminalAddress: '' });
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [showCompanyForm, setShowCompanyForm] = useState(false);
+  const [operatorAutocomplete, setOperatorAutocomplete] = useState(false);
+  const closeOperatorAutocompleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openOperatorAutocomplete = () => {
+    if (closeOperatorAutocompleteTimer.current) {
+      clearTimeout(closeOperatorAutocompleteTimer.current);
+      closeOperatorAutocompleteTimer.current = null;
+    }
+    setOperatorAutocomplete(true);
+  };
+  const closeOperatorAutocomplete = () => {
+    closeOperatorAutocompleteTimer.current = setTimeout(() => {
+      setOperatorAutocomplete(false);
+      closeOperatorAutocompleteTimer.current = null;
+    }, 200);
+  };
 
   const [profile, setProfile] = useState(() => {
     const base = preferences.userProfile || {
@@ -167,12 +198,15 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     if (!base.vehicles) {
       base.vehicles = [];
     }
+    if (!base.operatorCompanies) {
+      base.operatorCompanies = [];
+    }
     return base;
   });
 
 
-  const getVehicleMileage = (vehicle: VehicleProfile) => {
-    if (!vehicle.licensePlate) return vehicle.mileage || '--';
+  const getVehicleMileageInfo = (vehicle: VehicleProfile): { mileage: string; lastUpdated: string } => {
+    if (!vehicle.licensePlate) return { mileage: vehicle.mileage || '--', lastUpdated: '' };
 
     const cleanPlate = vehicle.licensePlate.trim().toLowerCase();
     const readings: { date: string; edited: string; value: number }[] = [];
@@ -191,10 +225,36 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     });
 
     readings.sort((a, b) => a.date.localeCompare(b.date) || a.edited.localeCompare(b.edited));
-    const latestOdo = readings.length > 0 ? readings[readings.length - 1].value : 0;
+    const latest = readings.length > 0 ? readings[readings.length - 1] : null;
+    const latestOdo = latest ? latest.value : 0;
     const profileMileage = Number(vehicle.mileage || 0);
     const resolvedMileage = Math.max(latestOdo, Number.isFinite(profileMileage) ? profileMileage : 0);
-    return resolvedMileage > 0 ? resolvedMileage.toString() : '--';
+    return {
+      mileage: resolvedMileage > 0 ? resolvedMileage.toString() : '--',
+      lastUpdated: latest ? (latest.edited || latest.date) : ''
+    };
+  };
+
+  const getVehicleMileage = (vehicle: VehicleProfile) => getVehicleMileageInfo(vehicle).mileage;
+
+  const formatMileageTimestamp = (raw: string) => {
+    if (!raw) return '';
+    const d = new Date(raw.length === 10 ? `${raw}T00:00:00` : raw);
+    if (Number.isNaN(d.getTime())) return raw;
+    return raw.includes('T')
+      ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+      : d.toLocaleDateString(undefined, { dateStyle: 'medium' });
+  };
+
+  const formatInspectionMonth = (raw: string) => {
+    if (!raw) return '';
+    // Accept YYYY-MM (native month input) and legacy full dates
+    const m = /^((\d{4})-(\d{2}))(?:-\d{2})?$/.exec(raw);
+    if (m) {
+      const d = new Date(`${m[1]}-15T00:00:00`);
+      if (!Number.isNaN(d.getTime())) return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
+    return raw;
   };
 
   const handleSave = () => {
@@ -243,6 +303,45 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     }
     
     setNewVehicle({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' });
+    setShowVehicleForm(false);
+  };
+
+  const handleSaveCompany = () => {
+    if (!newCompany.name.trim()) return; // Name is required
+
+    if (editingCompanyId) {
+      setProfile(p => ({
+        ...p,
+        operatorCompanies: (p.operatorCompanies || []).map(c =>
+          c.id === editingCompanyId ? { ...newCompany, id: editingCompanyId } : c
+        )
+      }));
+      setEditingCompanyId(null);
+    } else {
+      setProfile(p => ({
+        ...p,
+        operatorCompanies: [...(p.operatorCompanies || []), { ...newCompany, id: Date.now().toString() }]
+      }));
+    }
+
+    setNewCompany({ name: '', businessAddress: '', homeTerminalAddress: '' });
+    setShowCompanyForm(false);
+  };
+
+  const startEditCompany = (company: OperatorCompany) => {
+    setEditingCompanyId(company.id);
+    setNewCompany({
+      name: company.name || '',
+      businessAddress: company.businessAddress || '',
+      homeTerminalAddress: company.homeTerminalAddress || ''
+    });
+    setShowCompanyForm(true);
+  };
+
+  const handleCancelEditCompany = () => {
+    setEditingCompanyId(null);
+    setNewCompany({ name: '', businessAddress: '', homeTerminalAddress: '' });
+    setShowCompanyForm(false);
   };
 
   const startEditVehicle = (vehicle: VehicleProfile) => {
@@ -255,22 +354,37 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       operatorName: vehicle.operatorName || '',
       inspectionDate: vehicle.inspectionDate || ''
     });
+    setShowVehicleForm(true);
   };
 
   const handleCancelEdit = () => {
     setEditingVehicleId(null);
     setNewVehicle({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' });
+    setShowVehicleForm(false);
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-      <div className="glass-panel" style={{ padding: '1.5rem', paddingTop: '1rem', position: 'relative' }}>
+    <div style={{ width: '100%' }}>
+      <div style={{ position: 'relative' }}>
 
-        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--glass-border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
-          <button className={`nav-link ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>Personal Info</button>
-          <button className={`nav-link ${activeTab === 'vehicles' ? 'active' : ''}`} onClick={() => setActiveTab('vehicles')}>My Vehicles</button>
-          <button className={`nav-link ${activeTab === 'trucking' ? 'active' : ''}`} onClick={() => setActiveTab('trucking')}>Trucking Features</button>
-          <button className={`nav-link ${activeTab === 'sync' ? 'active' : ''}`} onClick={() => setActiveTab('sync')}>Cloud Sync</button>
+        <div
+          className="tab-row"
+          ref={tabRow.ref}
+          onMouseDown={tabRow.onMouseDown}
+        >
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => { if (!tabRow.dragState.current.moved) setActiveTab(tab.id); }}
+              >
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -302,7 +416,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               display: 'grid', 
               gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
               gap: '0.75rem', 
-              background: 'var(--bg-primary)', 
+              background: 'var(--bg-secondary)', 
               padding: '1rem', 
               borderRadius: '8px', 
               border: '1px solid var(--border-color)' 
@@ -361,15 +475,27 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
           {activeTab === 'vehicles' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {(profile.vehicles || []).length === 0 && (
+                <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem', background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
+                  No saved vehicles. Press the <strong>Add Vehicle</strong> button to add one.
+                </div>
+              )}
               {(profile.vehicles || []).map(v => (
-                <div key={v.id} style={{ padding: '1rem', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border-color)', position: 'relative' }}>
+                <div key={v.id} style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', position: 'relative' }}>
                   <h4 style={{ margin: '0 0 0.5rem 0', paddingRight: '2rem' }}>{v.friendlyName || v.vin || v.licensePlate || 'Unnamed Vehicle'}</h4>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem' }}>
                     <div><strong>VIN:</strong> {v.vin || '--'}</div>
                     <div><strong>Plate:</strong> {v.licensePlate || '--'}</div>
-                    <div><strong>Mileage:</strong> {getVehicleMileage(v)}</div>
+                    <div>
+                      <strong>Mileage:</strong> {getVehicleMileage(v)}
+                      {(() => { const info = getVehicleMileageInfo(v); return info.lastUpdated ? (
+                        <span style={{ marginLeft: '0.5rem', fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          Last updated: {formatMileageTimestamp(info.lastUpdated)}
+                        </span>
+                      ) : null; })()}
+                    </div>
                     <div><strong>Operator:</strong> {v.operatorName || '--'}</div>
-                    <div style={{ gridColumn: '1 / -1' }}><strong>Inspected:</strong> {v.inspectionDate || '--'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>Inspected:</strong> {formatInspectionMonth(v.inspectionDate) || '--'}</div>
                   </div>
                   <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', display: 'flex', gap: '0.5rem' }}>
                     <button 
@@ -393,7 +519,18 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                 </div>
               ))}
 
-              <div style={{ padding: '1.25rem', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
+              {!showVehicleForm && (
+                <button
+                  className="btn-primary"
+                  style={{ alignSelf: 'flex-start' }}
+                  onClick={() => { setEditingVehicleId(null); setNewVehicle({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' }); setShowVehicleForm(true); }}
+                >
+                  <Plus size={18} /> Add Vehicle
+                </button>
+              )}
+
+              {showVehicleForm && (
+              <div style={{ padding: '1.25rem', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
                 <h4 style={{ margin: '0 0 1rem 0', color: editingVehicleId ? 'var(--accent-blue)' : 'inherit' }}>
                   {editingVehicleId ? 'Edit Vehicle Details' : 'Add New Vehicle'}
                 </h4>
@@ -414,35 +551,171 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
                     <div className="input-group">
-                      <label>Mileage</label>
-                      <input type="number" value={newVehicle.mileage} onChange={e => setNewVehicle({...newVehicle, mileage: e.target.value})} placeholder="Odometer" />
+                      <label style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                        Mileage
+                        {editingVehicleId && (() => { const info = getVehicleMileageInfo(profile.vehicles.find(x => x.id === editingVehicleId)!); return info.lastUpdated ? (
+                          <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Last updated: {formatMileageTimestamp(info.lastUpdated)}
+                          </span>
+                        ) : null; })()}
+                      </label>
+                      <input type="number" aria-label="Mileage" value={newVehicle.mileage} onChange={e => setNewVehicle({...newVehicle, mileage: e.target.value})} placeholder="Odometer" />
                     </div>
                     <div className="input-group">
-                      <label>Inspection Date</label>
-                      <input type="date" value={newVehicle.inspectionDate} onChange={e => setNewVehicle({...newVehicle, inspectionDate: e.target.value})} />
+                      <label>Inspection Date (Month &amp; Year)</label>
+                      <input type="month" value={newVehicle.inspectionDate} onChange={e => setNewVehicle({...newVehicle, inspectionDate: e.target.value})} />
                     </div>
                   </div>
                   <div className="input-group">
                     <label>Operator / Company</label>
-                    <input type="text" value={newVehicle.operatorName} onChange={e => setNewVehicle({...newVehicle, operatorName: e.target.value})} />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        style={{ width: '100%' }}
+                        value={newVehicle.operatorName}
+                        onChange={e => { setNewVehicle({...newVehicle, operatorName: e.target.value}); openOperatorAutocomplete(); }}
+                        onClick={() => openOperatorAutocomplete()}
+                        onFocus={() => openOperatorAutocomplete()}
+                        onBlur={() => closeOperatorAutocomplete()}
+                        autoComplete="off"
+                        placeholder="Search saved companies..."
+                      />
+                      {operatorAutocomplete && (profile.operatorCompanies || []).length > 0 && (
+                        <div
+                          className="autocomplete-dropdown"
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            width: '100%',
+                            background: 'var(--glass-bg)',
+                            backdropFilter: 'blur(16px)',
+                            border: '1px solid var(--glass-border)',
+                            borderRadius: '8px',
+                            marginTop: '4px',
+                            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+                            zIndex: 1000,
+                            maxHeight: '200px',
+                            overflowY: 'auto'
+                          }}
+                        >
+                          {(profile.operatorCompanies || [])
+                            .filter(c => {
+                              const search = (newVehicle.operatorName || '').trim().toLowerCase();
+                              if (!search) return true;
+                              return c.name.toLowerCase().includes(search);
+                            })
+                            .map(c => (
+                              <div
+                                key={c.id}
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => {
+                                  setNewVehicle(v => ({ ...v, operatorName: c.name }));
+                                  setOperatorAutocomplete(false);
+                                }}
+                                style={{ padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-primary)', textAlign: 'left' }}
+                                className="autocomplete-option"
+                              >
+                                <div>{c.name}</div>
+                                {c.homeTerminalAddress && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{c.homeTerminalAddress}</div>
+                                )}
+                              </div>
+                            ))
+                          }
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn-primary" style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }} onClick={handleAddVehicle}>
-                      {editingVehicleId ? <Save size={18} /> : <Plus size={18} />}
-                      {editingVehicleId ? 'Update Vehicle' : 'Add Vehicle'}
+                    <button className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={handleAddVehicle}>
+                      <Save size={18} /> Save
                     </button>
-                    {editingVehicleId && (
-                      <button 
-                        className="btn-primary" 
-                        style={{ marginTop: '0.5rem', alignSelf: 'flex-start', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--text-primary)' }} 
-                        onClick={handleCancelEdit}
-                      >
-                        <X size={18} /> Cancel
-                      </button>
-                    )}
+                    <button className="btn-secondary" style={{ marginTop: '0.5rem' }} onClick={handleCancelEdit}>
+                      <X size={18} /> Cancel
+                    </button>
                   </div>
                 </div>
               </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'companies' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {(profile.operatorCompanies || []).length === 0 && (
+                <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem', background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
+                  No saved companies. Press the <strong>Add Company</strong> button to add one.
+                </div>
+              )}
+              {(profile.operatorCompanies || []).map(c => (
+                <div key={c.id} style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', position: 'relative' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', paddingRight: '2rem' }}>{c.name || 'Unnamed Company'}</h4>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem' }}>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>Business:</strong> {c.businessAddress || '--'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>Home Terminal:</strong> {c.homeTerminalAddress || '--'}</div>
+                  </div>
+                  <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '0.4rem', borderRadius: '6px', color: 'var(--accent-blue)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => startEditCompany(c)}
+                      title="Edit Company"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '0.4rem', borderRadius: '6px', color: 'var(--accent-red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => {
+                        if (editingCompanyId === c.id) handleCancelEditCompany();
+                        setProfile(p => ({ ...p, operatorCompanies: (p.operatorCompanies || []).filter(x => x.id !== c.id) }));
+                      }}
+                      title="Delete Company"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {!showCompanyForm && (
+                <button
+                  className="btn-primary"
+                  style={{ alignSelf: 'flex-start' }}
+                  onClick={() => { setEditingCompanyId(null); setNewCompany({ name: '', businessAddress: '', homeTerminalAddress: '' }); setShowCompanyForm(true); }}
+                >
+                  <Plus size={18} /> Add Company
+                </button>
+              )}
+
+              {showCompanyForm && (
+                <div style={{ padding: '1.25rem', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
+                  <h4 style={{ margin: '0 0 1rem 0', color: editingCompanyId ? 'var(--accent-blue)' : 'inherit' }}>
+                    {editingCompanyId ? 'Edit Company Details' : 'Add New Company'}
+                  </h4>
+                  <div style={{ display: 'grid', gap: '1rem' }}>
+                    <div className="input-group">
+                      <label>Company Name</label>
+                      <input type="text" value={newCompany.name} onChange={e => setNewCompany({...newCompany, name: e.target.value})} placeholder="e.g. Acme Trucking Inc." />
+                    </div>
+                    <div className="input-group">
+                      <label>Business Address</label>
+                      <input type="text" value={newCompany.businessAddress} onChange={e => setNewCompany({...newCompany, businessAddress: e.target.value})} placeholder="Street, City, Province" />
+                    </div>
+                    <div className="input-group">
+                      <label>Home Terminal Address</label>
+                      <input type="text" value={newCompany.homeTerminalAddress} onChange={e => setNewCompany({...newCompany, homeTerminalAddress: e.target.value})} placeholder="City, Province" />
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <button className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={handleSaveCompany}>
+                        <Save size={18} /> Save
+                      </button>
+                      <button className="btn-secondary" style={{ marginTop: '0.5rem' }} onClick={handleCancelEditCompany}>
+                        <X size={18} /> Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -602,7 +875,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
         </div>
 
         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-          <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--text-primary)' }} onClick={onClose}>
+          <button className="btn-secondary" onClick={onClose}>
             Cancel
           </button>
           <button className="btn-primary" onClick={handleSave}>

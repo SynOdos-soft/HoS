@@ -94,7 +94,12 @@ export const LogGrid: React.FC<LogGridProps> = ({ grid, preferences, date }) => 
       </div>
 
       {/* Scrollable Grid Area */}
-      <div className="log-grid-scroll-area" style={{
+      <div 
+        className="log-grid-scroll-area" 
+        role="region" 
+        aria-label="Duty status grid, scroll horizontally to view all hours" 
+        tabIndex={0}
+        style={{
         flexGrow: 1,
         overflowX: 'auto',
         WebkitOverflowScrolling: 'touch',

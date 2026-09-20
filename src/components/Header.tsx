@@ -17,22 +17,38 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (!isMenuOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      // Ignore clicks on the toggle button itself: the button's own click
+      // handler owns open/close. Closing here on mousedown would race the
+      // click event and re-toggle the menu right back open.
+      if (toggleRef.current?.contains(target)) return;
+      if (menuRef.current && !menuRef.current.contains(target)) {
         setIsMenuOpen(false);
       }
     };
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.body.classList.add('menu-open');
-    } else {
-      document.body.classList.remove('menu-open');
-    }
+    document.addEventListener('mousedown', handleClickOutside);
+
+    // Scroll lock that preserves the scrollbar: hiding overflow (the old
+    // body.menu-open lock) destroys the viewport scroll container, which
+    // removes the scrollbar and shifts the entire layout. Instead the page
+    // stays scrollable but is pinned to its pre-open position — wheel,
+    // keyboard and scrollbar drags all snap back. Zero shift, zero movement.
+    const pinnedY = window.scrollY;
+    const pinScroll = () => {
+      if (window.scrollY !== pinnedY) window.scrollTo(0, pinnedY);
+    };
+    window.addEventListener('scroll', pinScroll, { passive: true });
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.body.classList.remove('menu-open');
+      window.removeEventListener('scroll', pinScroll);
+      window.scrollTo(0, pinnedY);
     };
   }, [isMenuOpen]);
 
@@ -64,13 +80,20 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="header-right" style={{ position: 'relative', zIndex: 4000 }}>
-          <button className="hamburger-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          <button 
+            ref={toggleRef}
+            className="hamburger-btn" 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={isMenuOpen}
+            aria-controls="global-side-menu"
+          >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
         {/* Global Action & Nav Menu */}
-        <div className={`side-menu ${isMenuOpen ? 'open' : ''}`} ref={menuRef}>
+        <div className={`side-menu ${isMenuOpen ? 'open' : ''}`} ref={menuRef} id="global-side-menu">
           <div className="menu-header">
             <div className="brand-logo">
               <div className="logo-icon">S</div>

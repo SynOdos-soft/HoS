@@ -313,9 +313,9 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
         </div>
 
         {allAuditEntries.length === 0 ? (
-          <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
-            <FileText size={40} style={{ marginBottom: '0.75rem' }} />
-            <p>No audit entries found. All records are original.</p>
+          <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
+            <FileText size={40} style={{ marginBottom: '0.75rem', color: 'var(--text-secondary)' }} />
+            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>No audit entries found. All records are original.</p>
           </div>
         ) : (
           <div className="glass-panel" style={{ padding: 0 }}>

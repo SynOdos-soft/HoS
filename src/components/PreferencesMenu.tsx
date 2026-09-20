@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Preferences, APP_VERSION } from '../types';
 import { t } from '../utils/i18n';
 import { Settings, Save, FileText, Download, Info } from 'lucide-react';
+import { useDragScroll } from '../lib/useDragScroll';
 
 interface PreferencesMenuProps {
   preferences: Preferences;
@@ -16,6 +17,31 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-09-20',
+    ui: [
+      'Complete UI unification: shared design tokens for radius, spacing, fonts, and colors across every view.',
+      'Full accessibility pass: WCAG AA contrast in both themes, proper landmarks, labeled controls, and zoom support.',
+      'Preference views flattened to full width with consistent white surfaces for cards, forms, and buttons.',
+      'Settings tab bars redesigned: icons with aligned labels, single-line tabs, and drag-to-scroll on narrow screens.',
+      'Menu system polish: stable header positioning, reliable open/close toggle, and pinned background scrolling.'
+    ],
+    features: [
+      'Operator Companies: manage multiple operators with business address and home terminal, searchable from vehicle forms.',
+      'Reveal-on-demand forms for vehicles and companies with explicit Save/Cancel actions.',
+      'Vehicle mileage shows a last-updated timestamp sourced from the latest odometer reading.',
+      'Inspection date now captures month and year.',
+      'Empty states guide you to the Add button when no vehicles or companies are saved.'
+    ],
+    fixes: [
+      'Hamburger menu no longer reopens itself when pressed on certain spots.',
+      'Opening the menu no longer shifts the header or page layout.',
+      'Preference views span the full width with consistent white surfaces and buttons.',
+      'Settings tab bars align icons, stay on one line, and drag-scroll on narrow screens.',
+      'Company autofill dropdown no longer closes itself on quick refocus.'
+    ]
+  },
+  {
+    version: '0.17.0',
     date: '2026-09-19',
     features: [
       'Daily multi-vehicle logging with saved vehicle dropdowns, familiar vehicle names, and per-vehicle odometers.',
@@ -279,6 +305,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   installPrompt, isStandalone, onInstall, initialTab
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'defaults' | 'install' | 'version'>(initialTab || 'general');
+  const tabRow = useDragScroll<HTMLDivElement>();
   const [activeAutocomplete, setActiveAutocomplete] = useState<boolean>(false);
 
   const toggleBoolean = (key: keyof Preferences) => {
@@ -297,18 +324,22 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   ] as const;
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-      <div className="glass-panel" style={{ padding: '1.5rem', paddingTop: '1rem', position: 'relative' }}>
+    <div style={{ width: '100%' }}>
+      <div style={{ position: 'relative' }}>
         
         {/* Tab System identical to User Profile */}
-        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--glass-border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
+        <div
+          className="tab-row"
+          ref={tabRow.ref}
+          onMouseDown={tabRow.onMouseDown}
+        >
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => { if (!tabRow.dragState.current.moved) setActiveTab(tab.id as any); }}
                 className={`nav-link ${isActive ? 'active' : ''}`}
               >
                 <Icon size={16} />
@@ -536,6 +567,15 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                         <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>v{v.version}</h4>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{v.date}</span>
                       </div>
+
+                      {v.ui && v.ui.length > 0 && (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>Major Update</span>
+                          <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            {v.ui.map((item, j) => <li key={j}>{item}</li>)}
+                          </ul>
+                        </div>
+                      )}
 
                       {v.features.length > 0 && (
                         <div style={{ marginBottom: '0.5rem' }}>

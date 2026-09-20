@@ -948,6 +948,7 @@ export default function App() {
               <label>{day.vehicleName ? 'Vehicle' : 'CMV Plate'}</label>
               <input
                 type="text"
+                aria-label={day.vehicleName ? 'Vehicle' : 'CMV Plate'}
                 value={day.vehicleName ? `${day.vehicleName} (${day.cmvPlate})` : (day.cmvPlate || '')}
                 onChange={e => {
                   const val = e.target.value;
@@ -1015,11 +1016,11 @@ export default function App() {
             </div>
             <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
               <label>{t('startOdo', preferences.language)}</label>
-              <input type="number" value={day.startOdometer || ''} onChange={e => updateSelectedDayField(idx, 'startOdometer', e.target.value)} disabled={day.locked} />
+              <input type="number" aria-label={t('startOdo', preferences.language)} value={day.startOdometer || ''} onChange={e => updateSelectedDayField(idx, 'startOdometer', e.target.value)} disabled={day.locked} />
             </div>
             <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
               <label>{t('endOdo', preferences.language)}</label>
-              <input type="number" value={day.endOdometer || ''} onChange={e => updateSelectedDayField(idx, 'endOdometer', e.target.value)} disabled={day.locked} />
+              <input type="number" aria-label={t('endOdo', preferences.language)} value={day.endOdometer || ''} onChange={e => updateSelectedDayField(idx, 'endOdometer', e.target.value)} disabled={day.locked} />
             </div>
           </div>
         </div>
@@ -1042,6 +1043,7 @@ export default function App() {
                   <label>{vehicle.friendlyName ? 'Vehicle' : 'CMV Plate'}</label>
                   <input
                     type="text"
+                    aria-label={vehicle.friendlyName ? 'Vehicle' : 'CMV Plate'}
                     value={vehicle.friendlyName ? `${vehicle.friendlyName} (${vehicle.cmvPlate})` : vehicle.cmvPlate}
                     onChange={e => {
                       const value = e.target.value;
@@ -1094,11 +1096,11 @@ export default function App() {
                 </div>
                 <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
                   <label>{t('startOdo', preferences.language)}</label>
-                  <input type="number" value={vehicle.startOdometer} onChange={e => updateAdditionalVehicle(idx, vehicleIdx, 'startOdometer', e.target.value)} disabled={day.locked} />
+                  <input type="number" aria-label={`${t('startOdo', preferences.language)} - vehicle ${idx + 2}`} value={vehicle.startOdometer} onChange={e => updateAdditionalVehicle(idx, vehicleIdx, 'startOdometer', e.target.value)} disabled={day.locked} />
                 </div>
                 <div className="input-group" style={{ flex: 1, minWidth: '130px' }}>
                   <label>{t('endOdo', preferences.language)}</label>
-                  <input type="number" value={vehicle.endOdometer} onChange={e => updateAdditionalVehicle(idx, vehicleIdx, 'endOdometer', e.target.value)} disabled={day.locked} />
+                  <input type="number" aria-label={`${t('endOdo', preferences.language)} - vehicle ${idx + 2}`} value={vehicle.endOdometer} onChange={e => updateAdditionalVehicle(idx, vehicleIdx, 'endOdometer', e.target.value)} disabled={day.locked} />
                 </div>
             </div>
           </div>
@@ -1175,10 +1177,11 @@ export default function App() {
             logs={savedLogs}
           />
         ) : view === 'audit' ? (
-          <InspectionView logs={savedLogs} preferences={preferences} />
+          <main aria-label="Inspection">
+            <InspectionView logs={savedLogs} preferences={preferences} />
+          </main>
         ) : view === 'dashboard' ? (
-          <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <main aria-label="Dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               {(() => {
                 const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: preferences.weekStartsOn }), 'yyyy-MM-dd');
                 
@@ -1211,7 +1214,7 @@ export default function App() {
                     <h2 style={{ fontSize: '1.25rem', margin: '0.5rem 0 0.5rem 0', color: 'var(--text-secondary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontWeight: 600 }}>
                       {month}
                     </h2>
-                    <main style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                    <section style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }} aria-label={`${month} logs`}>
                       {groups[month].map(l => {
                         const isCurrent = l.id === currentWeekId;
                         const delStatus = deleteStatuses[l.id] || 'idle';
@@ -1346,12 +1349,11 @@ export default function App() {
                           </div>
                         );
                       })}
-                    </main>
+                    </section>
                   </div>
                 ));
               })()}
-            </div>
-          </>
+            </main>
         ) : (
           <>
             <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -1368,7 +1370,7 @@ export default function App() {
     />
 
               <div className="no-print glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
-                <button className="tool-btn" onClick={() => navigateToDay('prev')} style={{ padding: '0.5rem 1rem' }}>
+                <button className="tool-btn" onClick={() => navigateToDay('prev')} aria-label="Previous day" style={{ padding: '0.5rem 1rem' }}>
                   <ChevronLeft size={24} />
                 </button>
 
@@ -1379,7 +1381,7 @@ export default function App() {
                   </h2>
                 </div>
 
-                <button className="tool-btn" onClick={() => navigateToDay('next')} style={{ padding: '0.5rem 1rem' }}>
+                <button className="tool-btn" onClick={() => navigateToDay('next')} aria-label="Next day" style={{ padding: '0.5rem 1rem' }}>
                   <ChevronRight size={24} />
                 </button>
               </div>
@@ -1388,7 +1390,7 @@ export default function App() {
             </main>
 
             {days[selectedDayIndex] && (
-              <footer className="fixed-totals-footer no-print" style={{ padding: '0.75rem 1rem' }}>
+              <div className="fixed-totals-footer no-print" role="region" aria-label="Daily totals" style={{ padding: '0.75rem 1rem' }}>
                 <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
                   <Totals
                     grid={days[selectedDayIndex].grid}
@@ -1400,7 +1402,7 @@ export default function App() {
                     variant="compact"
                   />
                 </div>
-              </footer>
+              </div>
             )}
           </>
         )}
