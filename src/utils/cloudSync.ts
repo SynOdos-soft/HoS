@@ -43,14 +43,24 @@ export async function encryptData(data: string, pin: string): Promise<string> {
   combined.set(iv, 0);
   combined.set(encryptedArray, iv.length);
 
-  return btoa(String.fromCharCode(...combined));
+  // Convert to binary in chunks: spreading the whole buffer into
+  // String.fromCharCode overflows the call stack ("Maximum call stack size
+  // exceeded") once the encrypted backup grows past ~100 KB.
+  let binary = '';
+  const CHUNK_SIZE = 0x8000; // 32768, safely below the engine's max argument count
+  for (let i = 0; i < combined.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...combined.subarray(i, i + CHUNK_SIZE));
+  }
+  return btoa(binary);
 }
 
 export async function decryptData(encryptedBase64: string, pin: string): Promise<string> {
   const key = await getCryptoKey(pin);
-  const combined = new Uint8Array(
-    atob(encryptedBase64).split("").map(c => c.charCodeAt(0))
-  );
+  const binary = atob(encryptedBase64);
+  const combined = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    combined[i] = binary.charCodeAt(i);
+  }
   const iv = combined.slice(0, 12);
   const encryptedData = combined.slice(12);
 

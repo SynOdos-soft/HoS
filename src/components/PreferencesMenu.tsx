@@ -19,6 +19,14 @@ const VERSIONS = [
     version: APP_VERSION,
     date: '2026-09-20',
     fixes: [
+      'Fixed cloud backup failing with "Maximum call stack size exceeded" once a driver\u2019s log history grew large — backups of any size now succeed on every device.',
+      'Removed an empty status strip that could appear at the top of the screen after the app finished preparing offline mode.'
+    ]
+  },
+  {
+    version: '0.21.1',
+    date: '2026-09-20',
+    fixes: [
       'Fixed app updates: new versions now announce themselves with an "Update to vX.Y.Z" banner instead of being served stale assets until every tab was closed. Update when you are ready — your open log is never disturbed.'
     ]
   },

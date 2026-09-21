@@ -119,7 +119,7 @@ export default function App() {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
   }, []);
 
-  const { offlineReady: [offlineReady], needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
     onRegisteredSW(_url, registration) {
       if (!registration) return;
       const checkForUpdates = () => { registration.update().catch(() => {}); };
@@ -1191,7 +1191,7 @@ export default function App() {
       />
 
       <div className="main-content">
-        {((needRefresh && !swDismmissed) || offlineReady || !isOnline || (installPrompt && showInstallBanner)) && (
+        {((needRefresh && !swDismmissed) || !isOnline || (installPrompt && showInstallBanner)) && (
           <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || (installPrompt && showInstallBanner) ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || (installPrompt && showInstallBanner) ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
             {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>)
               : needRefresh ? (<>
