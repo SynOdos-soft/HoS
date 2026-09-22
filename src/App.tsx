@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Grid } from './components/Grid';
 import { Totals } from './components/Totals';
 import { MetadataForm } from './components/MetadataForm';
@@ -122,6 +122,7 @@ export default function App() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
     onRegisteredSW(_url, registration) {
       if (!registration) return;
+      swRegistrationRef.current = registration;
       const checkForUpdates = () => { registration.update().catch(() => {}); };
       // Refresh check on each app open / tab focus, plus a safety net while long-lived
       // tabs stay open (drivers may keep a week open for days without a reload).
@@ -141,6 +142,8 @@ export default function App() {
   const [newVersion, setNewVersion] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [swDismmissed, setSwDismmissed] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<'idle' | 'checking' | 'up-to-date'>('idle');
+  const swRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
     if (!needRefresh) return;
@@ -156,6 +159,18 @@ export default function App() {
     setIsUpdating(true);
     updateServiceWorker(true); // reloads the page once the waiting worker takes over
   };
+
+  const handleCheckForUpdates = () => {
+    if (!swRegistrationRef.current || updateCheckStatus === 'checking') return;
+    setUpdateCheckStatus('checking');
+    swRegistrationRef.current.update().catch(() => {});
+  };
+
+  useEffect(() => {
+    if (updateCheckStatus !== 'checking') return;
+    const timer = window.setTimeout(() => setUpdateCheckStatus((status) => (status === 'checking' ? 'up-to-date' : status)), 3000);
+    return () => window.clearTimeout(timer);
+  }, [updateCheckStatus]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -1213,6 +1228,8 @@ export default function App() {
             isStandalone={isStandalone}
             onInstall={handleInstallClick}
             initialTab={prefTab}
+            onCheckForUpdates={handleCheckForUpdates}
+            updateCheckStatus={updateCheckStatus}
           />
         ) : view === 'profile' ? (
           <UserMenu
@@ -1420,7 +1437,7 @@ export default function App() {
                 </button>
 
                 <div style={{ textAlign: 'center' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {days[selectedDayIndex] && format(parseISO(days[selectedDayIndex].date), 'EEEE, MMMM d')}
                     {days[selectedDayIndex]?.locked && <Lock size={20} color="#ef4444" />}
                   </h2>

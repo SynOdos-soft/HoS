@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Preferences, APP_VERSION } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, Save, Download, Info, SlidersHorizontal } from 'lucide-react';
+import { Settings, Save, Download, Info, SlidersHorizontal, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useDragScroll } from '../lib/useDragScroll';
 
 interface PreferencesMenuProps {
@@ -12,12 +12,22 @@ interface PreferencesMenuProps {
   isStandalone?: boolean;
   onInstall?: () => void;
   initialTab?: 'general' | 'trucking' | 'install' | 'version';
+  onCheckForUpdates?: () => void;
+  updateCheckStatus?: 'idle' | 'checking' | 'up-to-date';
 }
 
 const VERSIONS = [
   {
     version: APP_VERSION,
-    date: '2026-09-20',
+    date: '2026-09-22',
+    ui: [
+      'Added a "Check for updates" button next to Version History in System Settings.',
+      'Removed the "SynOdos" text label from the header bar and menu — logo icon only.',
+      'Made the daily log date heading smaller for a tighter day navigator.'
+    ]
+  },
+  {
+    version: '0.21.2',
     fixes: [
       'Fixed cloud backup failing with "Maximum call stack size exceeded" once a driver\u2019s log history grew large — backups of any size now succeed on every device.',
       'Removed an empty status strip that could appear at the top of the screen after the app finished preparing offline mode.'
@@ -329,7 +339,8 @@ const VERSIONS = [
 
 export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   preferences, setPreferences, onClose,
-  installPrompt, isStandalone, onInstall, initialTab
+  installPrompt, isStandalone, onInstall, initialTab,
+  onCheckForUpdates, updateCheckStatus = 'idle'
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'trucking' | 'install' | 'version'>(initialTab || 'general');
   const tabRow = useDragScroll<HTMLDivElement>();
@@ -515,7 +526,26 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
             {activeTab === 'version' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Version History</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                  <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Version History</h3>
+                  {onCheckForUpdates && (
+                    <button
+                      className="btn-secondary"
+                      onClick={onCheckForUpdates}
+                      disabled={updateCheckStatus === 'checking'}
+                      style={{ padding: '0.375rem 0.75rem', fontSize: '0.8rem', borderRadius: '6px', gap: '0.375rem', flexShrink: 0 }}
+                    >
+                      <RefreshCw size={14} style={updateCheckStatus === 'checking' ? { animation: 'spin 1s linear infinite' } : undefined} />
+                      {updateCheckStatus === 'checking' ? 'Checking…' : 'Check for updates'}
+                    </button>
+                  )}
+                </div>
+                {updateCheckStatus === 'up-to-date' && (
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    <CheckCircle2 size={14} color="var(--accent-green)" />
+                    You're on the latest version (v{APP_VERSION})
+                  </p>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {VERSIONS.map((v, i) => (
                     <div key={i} style={{
@@ -529,7 +559,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.ui && v.ui.length > 0 && (
                         <div style={{ marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>Major Update</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>UI Changes</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.ui.map((item, j) => <li key={j}>{item}</li>)}
                           </ul>

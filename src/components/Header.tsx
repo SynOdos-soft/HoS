@@ -74,7 +74,6 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="header-left">
           <div className="brand-logo" onClick={() => onNavigate('dashboard')} style={{ cursor: 'pointer' }}>
             <div className="logo-icon">S</div>
-            <span className="brand-name hide-mobile">SynOdos</span>
           </div>
           <h1 className="header-title">{getTitle()}</h1>
         </div>
@@ -97,7 +96,6 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="menu-header">
             <div className="brand-logo">
               <div className="logo-icon">S</div>
-              <span className="brand-name">SynOdos</span>
             </div>
             {/* Close button removed - handled by persistent hamburger icon */}
           </div>
