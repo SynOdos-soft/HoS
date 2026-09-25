@@ -18,7 +18,7 @@ import { UserMenu } from './components/UserMenu';
 import { SteeringWheel } from './components/Icons';
 import { useAuth } from './lib/auth';
 import { SignIn } from './components/SignIn';
-import { SessionExpired } from './components/SessionExpired';
+import { Paywall } from './components/Paywall';
 import { startCloudSync, stopCloudSync, setCloudSyncPreferences } from './utils/driveSync';
 import { getActiveProvider, getActiveProviderId } from './utils/cloudProviders';
 import { completeGoogleDriveHandshake } from './utils/googleDriveProvider';
@@ -1296,10 +1296,11 @@ export default function App() {
   if (!session) {
     return <SignIn />;
   }
-  // Offline grace window lapsed: require one online re-validation (the point
-  // where a subscription entitlement check will later live) before continuing.
+  // Offline grace window lapsed: require one online re-validation. Renewal
+  // includes the subscription entitlement check — an inactive plan lands on
+  // the paywall instead of resuming the app.
   if (!authFresh) {
-    return <SessionExpired />;
+    return <Paywall />;
   }
 
   const accountEmail = user?.email || '';

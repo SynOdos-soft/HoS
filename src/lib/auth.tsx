@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabaseClient';
+import { fetchEntitlement, type Entitlement } from '../utils/entitlements';
 
 interface AuthContextValue {
   /** undefined while the persisted session is being restored; null once known signed-out. */
@@ -14,7 +15,7 @@ interface AuthContextValue {
   /** Reach the server to re-validate the session and extend the offline window. */
   validateSession: () => Promise<{ ok: boolean; error: string | null }>;
   /** Subscription entitlement as of the last validation. */
-  subscription: { plan: string; active: boolean; periodEnd: string | null };
+  subscription: Entitlement;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
@@ -61,12 +62,10 @@ const friendlyAuthError = (message: string): string => {
   return message;
 };
 
-interface SubscriptionState { plan: string; active: boolean; periodEnd: string | null }
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState<SubscriptionState>({ plan: 'free', active: false, periodEnd: null });
+  const [subscription, setSubscription] = useState<Entitlement>({ plan: 'free', active: false, periodEnd: null, reason: 'no-subscription' });
   // Millisecond clock bumped on validation and once a minute so the
   // countdown stays live while the app sits open in the cab.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -175,28 +174,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // The offline grace window only extends when the account's plan is
     // active. This is the single point where a billing system grants (or
     // denies) continued access.
-    const { data: sub, error: subError } = await supabase
-      .from('subscriptions')
-      .select('status, current_period_end')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (subError) {
-      return { ok: false, error: 'Could not verify your plan. Try again in a moment.' };
+    const entitlement = await fetchEntitlement(userId);
+    setSubscription(entitlement);
+    if (!entitlement.active) {
+      const msg =
+        entitlement.reason === 'expired'
+          ? 'Your subscription has ended. Renew to continue logging — your data is safe on this device.'
+          : entitlement.reason === 'error'
+            ? 'Could not verify your plan. Try again in a moment.'
+            : 'This account is not subscribed. Choose a plan to keep logging.';
+      return { ok: false, error: msg };
     }
-    const status = (sub?.status || 'free').toLowerCase();
-    const periodEnd = sub?.current_period_end ? Date.parse(sub.current_period_end) : null;
-    const periodValid = periodEnd === null || periodEnd > Date.now();
-    if (!(status === 'active' || status === 'trialing') || !periodValid) {
-      setSubscription({ plan: sub?.status ? status : 'free', active: false, periodEnd: sub?.current_period_end || null });
-      return {
-        ok: false,
-        error:
-          status === 'expired' || (periodEnd !== null && !periodValid)
-            ? 'Your subscription has ended. Renew to continue syncing — your logs are safe on this device.'
-            : 'This account is not subscribed. Choose a plan to keep logging.',
-      };
-    }
-    setSubscription({ plan: status, active: true, periodEnd: sub?.current_period_end || null });
     markValidatedFor(userId);
     return { ok: true, error: null };
   }, [markValidatedFor]);

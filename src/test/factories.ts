@@ -18,8 +18,9 @@ export const makeMeta = (over: Partial<WeeklyMetadata> = {}): WeeklyMetadata => 
 });
 
 let dayCounter = 0;
+export const resetDayCounter = () => { dayCounter = 0; };
 export const makeDay = (over: Partial<DayEntry> = {}): DayEntry => ({
-  date: `2026-09-2${dayCounter++ % 7}`,
+  date: over.date ?? `2026-09-2${dayCounter++ % 7}`,
   grid: Array(96).fill('off-duty'),
   remarks: '',
   startOdometer: '',
@@ -35,7 +36,7 @@ export const makeDay = (over: Partial<DayEntry> = {}): DayEntry => ({
 export const makeWeek = (id = '2026-09-21', days?: DayEntry[], updatedAt?: string): WeeklyLog => ({
   id,
   metadata: makeMeta(),
-  days: days ?? Array.from({ length: 7 }, (_, i) => makeDay({ date: `2026-09-${21 + i}` })),
+  days: days ?? Array.from({ length: 7 }, (_, i) => makeDay({ date: `${id.slice(0, 8)}${String(Number(id.slice(8)) + i).padStart(2, '0')}` })),
   auditLog: [],
   ...(updatedAt ? { updatedAt } : {}),
 });

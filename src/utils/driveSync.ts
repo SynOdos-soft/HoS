@@ -35,6 +35,8 @@ let periodicTimer: ReturnType<typeof setInterval> | null = null;
 let started = false;
 let syncing = false;
 let pendingResync = false;
+/** Resolves when the in-flight round settles (for syncNow + tests). */
+let currentRound: Promise<void> = Promise.resolve();
 let lastPreferencesRef: Preferences | null = null;
 
 const setState = (s: SyncState, msg = '') => {
@@ -58,7 +60,7 @@ export const schedulePush = () => {
 
 export const syncNow = async (): Promise<{ ok: boolean; error: string | null }> => {
   if (!started) return { ok: false, error: 'Sync is not running (connect Google Drive first).' };
-  await runSync();
+  await currentRound; // await the in-flight round (startCloudSync fires one)
   const { state: s, message: msg } = getSyncState();
   return s === 'error' ? { ok: false, error: msg || 'Sync failed.' } : { ok: true, error: null };
 };
@@ -84,12 +86,14 @@ export const mergeLogIntoLocal = async (remote: WeeklyLog, remoteUpdatedAt: stri
     if (!lDay) { merged.push(rDay); changed = true; continue; }
     const lStamp = lDay.lastEdited || '';
     const rStamp = rDay.lastEdited || '';
+    // Address by DATE: `merged` holds shallow copies, so indexOf(lDay) would
+    // always miss. (Bug caught by unit tests — newer remote days were being
+    // silently dropped.)
+    const idx = merged.findIndex(d => d.date === rDay.date);
     if (rStamp && lStamp && rStamp > lStamp) {
-      const idx = merged.indexOf(lDay);
       if (idx >= 0) merged[idx] = rDay;
       changed = true;
     } else if (!lStamp && (!rStamp || rStamp > (localStamp || ''))) {
-      const idx = merged.indexOf(lDay);
       if (idx >= 0) merged[idx] = rDay;
       changed = true;
     }
@@ -149,11 +153,15 @@ const runSync = async (): Promise<void> => {
   const provider = getActiveProvider();
   if (!provider) return; // local-only mode: nothing to do, stay idle
   syncing = true;
+  const round = (async () => {
   setState('syncing');
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user) return;
+    if (!user) {
+      setState('idle');
+      return;
+    }
 
     if (!(await provider.isConnected())) {
       setState('error', `${provider.label} is not connected.`);
@@ -189,9 +197,19 @@ const runSync = async (): Promise<void> => {
         await provider.deleteWeek(logId);
         delete nextIndex.weeks[logId];
         nextIndex.deleted[logId] = op.ts;
+        // Record the local tombstone so a later pull never resurrects this
+        // week from a stale remote copy (guarded by timestamp in the merge).
+        const localTombstones = { ...((await metaGet('deleted')) as Record<string, string> | undefined || {}) };
+        localTombstones[logId] = op.ts;
+        await metaSet('deleted', localTombstones);
       } else {
         const log = await getLog(logId);
         if (!log) continue;
+        // A provider tombstone suppresses one push round: the local device
+        // just learned the week was deleted elsewhere. If the local copy is
+        // genuinely newer, the NEXT local edit re-enqueues and wins; if not,
+        // the delete stands and the stale copy stays only on this device.
+        if (nextIndex.deleted[logId]) continue;
         await provider.writeWeek(log);
         nextIndex.weeks[logId] = log.updatedAt || op.ts;
         delete nextIndex.deleted[logId];
@@ -252,6 +270,9 @@ const runSync = async (): Promise<void> => {
       schedulePush();
     }
   }
+  })();
+  currentRound = round;
+  try { await round; } finally { if (currentRound === round) currentRound = Promise.resolve(); }
 };
 
 const handleOnline = () => void runSync();
