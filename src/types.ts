@@ -53,6 +53,10 @@ export interface WeeklyLog {
   metadata: WeeklyMetadata;
   days: DayEntry[]; // 7 entries, Monday to Sunday
   auditLog?: AuditEntry[];
+  /** ISO timestamp of the last local save; used for sync conflict resolution. */
+  updatedAt?: string;
+  /** Tombstone set when the week was deleted locally; synced as deleted rows. */
+  deleted?: boolean;
 }
 
 export type PaintMode = Status | 'cycle';
@@ -112,6 +116,8 @@ export interface Preferences {
   cloudSyncLastSync: string;
   hideEarlyHours: boolean;
   collapseEarlyHours: boolean;
+  /** Email of the signed-in account (display only; auth state lives in Supabase). */
+  accountEmail?: string;
 }
 
 export const DEFAULT_PREFS: Preferences = {

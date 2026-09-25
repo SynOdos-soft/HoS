@@ -7,7 +7,7 @@ import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, DayVehicle, Preferences, DEFAULT_PREFS, AuditEntry, APP_VERSION } from './types';
 import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
 import { generatePDF } from './utils/pdf';
-import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase, X, RefreshCw } from 'lucide-react';
+import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase, X, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -16,6 +16,12 @@ import { ReasonModal } from './components/ReasonModal';
 import { UnlockConfirmModal } from './components/UnlockConfirmModal';
 import { UserMenu } from './components/UserMenu';
 import { SteeringWheel } from './components/Icons';
+import { useAuth } from './lib/auth';
+import { SignIn } from './components/SignIn';
+import { SessionExpired } from './components/SessionExpired';
+import { startCloudSync, stopCloudSync, setCloudSyncPreferences } from './utils/driveSync';
+import { getActiveProvider, getActiveProviderId } from './utils/cloudProviders';
+import { completeGoogleDriveHandshake } from './utils/googleDriveProvider';
 
 const DEFAULT_METADATA: WeeklyMetadata = {
   homeTerminalAddress: '',
@@ -68,6 +74,54 @@ const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMeta
 };
 
 export default function App() {
+  const { session, user, loading: authLoading, signOut, authFresh, daysRemaining } = useAuth();
+
+  // Optional cloud connection (Google Drive today). The app is fully
+  // functional without it; this only enables backup + device sync. The flag
+  // is maintained so other modules can read connection state cheaply.
+  useEffect(() => {
+    // Complete the OAuth return if we came back from Google's consent screen.
+    void completeGoogleDriveHandshake().then(done => {
+      if (done) localStorage.setItem('hos-drive-connected', 'true');
+    });
+    if (!session) return;
+    let cancelled = false;
+    getActiveProvider()?.isConnected().then((connected: boolean) => {
+      if (!cancelled) localStorage.setItem('hos-drive-connected', connected ? 'true' : 'false');
+    });
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  // --- Incoming remote preferences ---------------------------------------
+  // pullRemote() writes a pulled preferences blob to localStorage under
+  // 'hos-preferences-incoming' and fires 'hos-prefs-incoming'. We adopt it
+  // only if it is newer than our last local save, so a stale remote blob can
+  // never clobber fresher local edits.
+  useEffect(() => {
+    const adopt = () => {
+      try {
+        const raw = localStorage.getItem('hos-preferences-incoming');
+        if (!raw) return;
+        localStorage.removeItem('hos-preferences-incoming');
+        const incoming = JSON.parse(raw);
+        const localSavedAt = localStorage.getItem('hos-preferences-saved-at') || '';
+        if (incoming.savedAt && incoming.savedAt <= localSavedAt) return;
+        const { savedAt, ...prefs } = incoming;
+        setPreferences(prev => ({
+          ...DEFAULT_PREFS,
+          ...prev,
+          ...prefs,
+          userProfile: { ...DEFAULT_PREFS.userProfile, ...(prev.userProfile || {}), ...(prefs.userProfile || {}) },
+        }));
+        localStorage.setItem('hos-preferences-saved-at', savedAt || new Date().toISOString());
+      } catch (e) {
+        console.error('[sync] failed to adopt incoming preferences', e);
+      }
+    };
+    window.addEventListener('hos-prefs-incoming', adopt);
+    return () => window.removeEventListener('hos-prefs-incoming', adopt);
+  }, []);
+
   const [view, setView] = useState<'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences'>('dashboard');
   const [savedLogs, setSavedLogs] = useState<WeeklyLog[]>([]);
 
@@ -84,7 +138,7 @@ export default function App() {
           ...(parsed.userProfile || {})
         }
       };
-    } catch (e) {
+    } catch {
       return DEFAULT_PREFS;
     }
   });
@@ -144,6 +198,7 @@ export default function App() {
   const [swDismmissed, setSwDismmissed] = useState(false);
   const [updateCheckStatus, setUpdateCheckStatus] = useState<'idle' | 'checking' | 'up-to-date'>('idle');
   const swRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
+  const [showUpToDateToast, setShowUpToDateToast] = useState(false);
 
   useEffect(() => {
     if (!needRefresh) return;
@@ -169,6 +224,24 @@ export default function App() {
   useEffect(() => {
     if (updateCheckStatus !== 'checking') return;
     const timer = window.setTimeout(() => setUpdateCheckStatus((status) => (status === 'checking' ? 'up-to-date' : status)), 3000);
+    return () => window.clearTimeout(timer);
+  }, [updateCheckStatus]);
+
+  // Announce "up to date" as a transient toast once the update check resolves.
+  // Closing goes through a 'closing' state so the ease fade-out can play before unmount.
+  const [isToastClosing, setIsToastClosing] = useState(false);
+  const closeUpToDateToast = () => {
+    setIsToastClosing(true);
+    window.setTimeout(() => {
+      setShowUpToDateToast(false);
+      setIsToastClosing(false);
+    }, 250);
+  };
+  useEffect(() => {
+    if (updateCheckStatus !== 'up-to-date') return;
+    setShowUpToDateToast(true);
+    setIsToastClosing(false);
+    const timer = window.setTimeout(closeUpToDateToast, 4000);
     return () => window.clearTimeout(timer);
   }, [updateCheckStatus]);
 
@@ -202,16 +275,25 @@ export default function App() {
       document.documentElement.classList.remove('light-mode');
     }
     localStorage.setItem('hos-preferences', JSON.stringify(preferences));
+    localStorage.setItem('hos-preferences-saved-at', new Date().toISOString());
+    setCloudSyncPreferences(preferences);
   }, [preferences]);
 
   useEffect(() => { if (view === 'dashboard' || view === 'audit') loadDashboard(); }, [view]);
 
+  // Boot: local data always loads. The optional cloud engine only runs when
+  // a provider is connected — never a gate, purely additive.
   useEffect(() => {
+    if (authLoading || !session) return;
     if (!autoLoaded) {
       setAutoLoaded(true);
       autoLoadCurrentWeek();
     }
-  }, []);
+    if (getActiveProviderId()) {
+      startCloudSync(preferences);
+      return () => stopCloudSync();
+    }
+  }, [authLoading, session?.user?.id]);
 
   const applyLastUsedVehicle = (day: DayEntry, fallbackPlate: string) => {
     const lastUsedPlate = getLastUsedVehiclePlate();
@@ -627,9 +709,10 @@ export default function App() {
     return diffs;
   };
 
-  const handleSave = async (reason: string = '', afterAction?: () => void) => {
+  const handleSave = async (reason: string = '', afterAction?: () => void, overrideDays?: DayEntry[]) => {
     const today = startOfDay(new Date());
-    const needsReason = days.some((d, i) => {
+    const effectiveDays = overrideDays ?? days;
+    const needsReason = effectiveDays.some((d, i) => {
       const old = lastSavedLog?.days[i];
       return old && (isBefore(parseISO(d.date), today) || old.locked) && JSON.stringify(d) !== JSON.stringify(old);
     });
@@ -640,8 +723,8 @@ export default function App() {
     }
     setIsSaving(true);
     let newAudit = auditLog;
-    if (lastSavedLog) newAudit = [...auditLog, ...getAuditDiffs(lastSavedLog, { id: currentId, metadata, days }, reason)];
-    const log = { id: currentId, metadata, days, auditLog: newAudit };
+    if (lastSavedLog) newAudit = [...auditLog, ...getAuditDiffs(lastSavedLog, { id: currentId, metadata, days: effectiveDays }, reason)];
+    const log = { id: currentId, metadata, days: effectiveDays, auditLog: newAudit };
     await saveLog(log);
 
     setAuditLog(newAudit);
@@ -954,6 +1037,15 @@ export default function App() {
       return;
     }
 
+    // "Finish Day" on a past day is a record-keeping event: apply the lock and
+    // save immediately so the past-day edit-reason window (audit trail) runs.
+    if (isPastDay) {
+      const lockedDays = days.map((d, i) => (i === idx ? { ...d, locked: true } : d));
+      setDays(lockedDays);
+      handleSave('', undefined, lockedDays);
+      return;
+    }
+
     executeToggleLock(idx);
   };
 
@@ -1192,6 +1284,26 @@ export default function App() {
     );
   };
 
+  // --- Auth gate ---------------------------------------------------------
+  // While the persisted session is restoring, show nothing (avoids flashing
+  // the sign-in screen for an already signed-in driver). Once resolved:
+  // signed-out renders the SignIn screen; signed-in renders the full app.
+  if (authLoading || session === undefined) {
+    return (
+      <div className="app-container" style={{ minHeight: '100dvh' }} />
+    );
+  }
+  if (!session) {
+    return <SignIn />;
+  }
+  // Offline grace window lapsed: require one online re-validation (the point
+  // where a subscription entitlement check will later live) before continuing.
+  if (!authFresh) {
+    return <SessionExpired />;
+  }
+
+  const accountEmail = user?.email || '';
+
   return (
     <div className="app-container">
       <Header
@@ -1203,6 +1315,9 @@ export default function App() {
         onSavePreset={handleSavePreset}
         onApplyPreset={handleApplyPreset}
         onRoadsidePDF={handleRoadsidePDF}
+        accountEmail={accountEmail}
+        onSignOut={signOut}
+        daysRemaining={daysRemaining}
       />
 
       <div className="main-content">
@@ -1478,6 +1593,22 @@ export default function App() {
           </span>
         </footer>
       </div>
+      {showUpToDateToast && (
+        <div role="status" aria-live="polite" className="glass-panel no-print" style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 5000, width: 'min(420px, calc(100vw - 2rem))', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '1rem 1.25rem', borderRadius: '16px', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', backgroundImage: 'linear-gradient(90deg, color-mix(in srgb, var(--accent-green) 14%, transparent), transparent 55%)', border: '1px solid var(--border-color)', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)', animation: isToastClosing ? 'toast-out 0.25s ease-in forwards' : 'toast-in 0.25s ease-out' }}>
+          <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-green)', marginTop: '0.125rem' }}>
+            <CheckCircle2 size={16} color="#fff" />
+          </span>
+          <span style={{ flex: 1, fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+            You're on the latest version (v{APP_VERSION})
+          </span>
+          <button className="close-btn" aria-label="Dismiss" onClick={closeUpToDateToast} style={{ flexShrink: 0, marginTop: '0.125rem' }}>
+            <X size={16} />
+          </button>
+          {!isToastClosing && (
+            <span aria-hidden="true" style={{ position: 'absolute', left: 0, bottom: 0, height: '3px', width: '100%', borderRadius: '0 0 16px 16px', background: 'var(--accent-green)', opacity: 0.6, transformOrigin: 'left', animation: 'toast-timer 4s linear forwards' }} />
+          )}
+        </div>
+      )}
       <ReasonModal
         isOpen={isReasonModalOpen}
         isNavigating={!!pendingNav}

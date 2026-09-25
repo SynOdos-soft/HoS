@@ -27,9 +27,9 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({ isOpen, onSave, onDisc
           <Textarea id="edit-reason" autoFocus placeholder="Corrected duty status mismatch from dispatch records..." value={reason} onChange={e => setReason(e.target.value)} />
         </Field>
         <div className="ui-modal-actions">
-          <Button disabled={!reason.trim()} onClick={() => { onSave(reason); setReason(''); }}>{isNavigating ? 'Save & navigate' : 'Confirm & save'}</Button>
-          {onDiscard && <Button variant="outline" onClick={() => { onDiscard(); setReason(''); }}>Discard changes</Button>}
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          {onDiscard && <Button variant="destructive" onClick={() => { onDiscard(); setReason(''); }}>Discard changes</Button>}
+          <Button disabled={!reason.trim()} onClick={() => { onSave(reason); setReason(''); }}>{isNavigating ? 'Save & navigate' : 'Confirm & save'}</Button>
         </div>
       </div>
     </div>

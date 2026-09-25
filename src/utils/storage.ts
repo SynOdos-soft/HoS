@@ -6,19 +6,68 @@ interface HoSDB extends DBSchema {
     key: string;
     value: WeeklyLog;
   };
+  /** Pending sync work, drained by the sync engine. Additive in DB v3. */
+  outbox: {
+    key: number;
+    value: OutboxEntry;
+  };
+  /** Small sync metadata (Drive cursors, connection state). Additive in DB v4. */
+  meta: {
+    key: string;
+    value: { key: string; value: unknown };
+  };
 }
+
+export interface OutboxEntry {
+  seq?: number;
+  kind: 'log-updated' | 'log-deleted';
+  logId: string;
+  ts: string;
+}
+
+export type LogMutation =
+  | { type: 'log-updated'; logId: string }
+  | { type: 'log-deleted'; logId: string };
+
+type MutationListener = (mutation: LogMutation) => void;
+const mutationListeners = new Set<MutationListener>();
+
+/**
+ * Subscribe to local log mutations. Used by the sync engine to schedule a
+ * push whenever anything changes, without coupling storage to sync.
+ */
+export const onLogMutation = (listener: MutationListener): (() => void) => {
+  mutationListeners.add(listener);
+  return () => mutationListeners.delete(listener);
+};
+
+const notifyMutations = (mutation: LogMutation) => {
+  mutationListeners.forEach(l => {
+    try { l(mutation); } catch (e) { console.error('[storage] mutation listener failed', e); }
+  });
+};
 
 let dbPromise: Promise<IDBPDatabase<HoSDB>> | null = null;
 
+const DB_VERSION = 4;
+
 export const initDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<HoSDB>('hos-ontario', 2, {
+    dbPromise = openDB<HoSDB>('hos-ontario', DB_VERSION, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           db.createObjectStore('logs', { keyPath: 'id' });
         } else if (oldVersion === 1) {
           db.deleteObjectStore('logs');
           db.createObjectStore('logs', { keyPath: 'id' });
+        }
+        // v3: additive outbox store only — existing logs data is untouched.
+        if (oldVersion < 3) {
+          db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true });
+        }
+        // v4: additive meta store for sync metadata.
+        if (oldVersion < 4) {
+          db.createObjectStore('meta', { keyPath: 'key' });
         }
       },
       blocked() {
@@ -49,19 +98,20 @@ const executeWithRetry = async <T>(operation: (db: IDBPDatabase<HoSDB>) => Promi
   let db = await initDB();
   try {
     return await operation(db);
-  } catch (error: any) {
-    const errorMsg = error?.message || String(error);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errName = error instanceof Error ? error.name : '';
     const isClosedOrClosing = 
       errorMsg.includes('closing') || 
       errorMsg.includes('closed') || 
       errorMsg.includes('InvalidStateError') ||
-      error.name === 'InvalidStateError';
+      errName === 'InvalidStateError';
 
     if (isClosedOrClosing) {
       console.warn('IndexedDB transaction failed due to closed/closing connection. Retrying with a new connection...', error);
       try {
         db.close();
-      } catch (e) {
+      } catch {
         // Safe to ignore if already closed
       }
       dbPromise = null;
@@ -73,6 +123,21 @@ const executeWithRetry = async <T>(operation: (db: IDBPDatabase<HoSDB>) => Promi
 };
 
 export const saveLog = async (log: WeeklyLog) => {
+  const record: WeeklyLog = { ...log, updatedAt: new Date().toISOString() };
+  await executeWithRetry(async (db) => {
+    await db.put('logs', record);
+    const tx = db.transaction('outbox', 'readwrite');
+    await tx.store.put({ kind: 'log-updated', logId: record.id, ts: record.updatedAt as string });
+    await tx.done;
+  });
+  notifyMutations({ type: 'log-updated', logId: record.id });
+};
+
+/**
+ * Write logs coming FROM the cloud without re-enqueuing them (a pull must not
+ * schedule a push of the data it just received). Used only by the sync engine.
+ */
+export const putLogRaw = async (log: WeeklyLog) => {
   await executeWithRetry(async (db) => {
     await db.put('logs', log);
   });
@@ -105,6 +170,45 @@ export const getAllLogs = async (): Promise<WeeklyLog[]> => {
 export const deleteLog = async (id: string) => {
   await executeWithRetry(async (db) => {
     await db.delete('logs', id);
+    const tx = db.transaction('outbox', 'readwrite');
+    await tx.store.put({ kind: 'log-deleted', logId: id, ts: new Date().toISOString() });
+    await tx.done;
+  });
+  notifyMutations({ type: 'log-deleted', logId: id });
+};
+
+// ---- Outbox (pending sync work) ----
+
+export const outboxAdd = async (entry: Omit<OutboxEntry, 'seq'>) => {
+  await executeWithRetry(async (db) => {
+    await db.put('outbox', entry);
+  });
+};
+
+export const outboxGetAll = async (): Promise<OutboxEntry[]> => {
+  return await executeWithRetry(async (db) => {
+    return await db.getAll('outbox');
+  });
+};
+
+export const outboxClear = async () => {
+  await executeWithRetry(async (db) => {
+    await db.clear('outbox');
+  });
+};
+
+// ---- Meta store (sync metadata) ----
+
+export const metaSet = async (key: string, value: unknown) => {
+  await executeWithRetry(async (db) => {
+    await db.put('meta', { key, value });
+  });
+};
+
+export const metaGet = async (key: string): Promise<unknown> => {
+  return await executeWithRetry(async (db) => {
+    const row = await db.get('meta', key);
+    return row ? row.value : undefined;
   });
 };
 

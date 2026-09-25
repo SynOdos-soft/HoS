@@ -24,7 +24,7 @@ export default defineConfig({
       // 'prompt' keeps the old service worker active until the driver accepts
       // the "Update to vX.Y.Z" banner, so an open log is never hot-swapped mid-week.
       registerType: 'prompt',
-      includeAssets: ['vite.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Synodos | Log',
         short_name: 'Synodos Log',
