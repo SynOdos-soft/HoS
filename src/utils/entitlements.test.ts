@@ -3,6 +3,7 @@ import { evaluateEntitlement, type SubscriptionRow } from './entitlements';
 
 const NOW = Date.parse('2026-09-25T12:00:00Z');
 const row = (over: Partial<SubscriptionRow> = {}): SubscriptionRow => ({
+  plan: 'founder',
   status: 'active',
   current_period_end: '2027-09-25T12:00:00Z',
   ...over,
@@ -13,7 +14,7 @@ describe('evaluateEntitlement', () => {
     const e = evaluateEntitlement(row(), NOW);
     expect(e.active).toBe(true);
     expect(e.reason).toBe('active');
-    expect(e.plan).toBe('active');
+    expect(e.plan).toBe('founder');
   });
 
   it('trialing counts as active', () => {
@@ -54,6 +55,13 @@ describe('evaluateEntitlement', () => {
   it('null period end on an active plan never expires (open-ended plan)', () => {
     const e = evaluateEntitlement(row({ current_period_end: null }), NOW);
     expect(e.active).toBe(true);
+    expect(e.plan).toBe('founder');
+  });
+
+  it('plan name comes from the plan column, not status', () => {
+    const e = evaluateEntitlement(row({ plan: 'free', status: 'active' }), NOW);
+    expect(e.active).toBe(true);
+    expect(e.plan).toBe('free');
   });
 
   it('boundary: period ending exactly now is expired', () => {

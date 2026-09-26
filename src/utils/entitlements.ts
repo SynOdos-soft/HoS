@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 
 export interface SubscriptionRow {
+  plan: string;
   status: string;
   current_period_end: string | null;
 }
@@ -23,14 +24,15 @@ export const evaluateEntitlement = (row: SubscriptionRow | null | undefined, now
   if (!row) {
     return { plan: 'free', active: false, periodEnd: null, reason: 'no-subscription' };
   }
-  const plan = (row.status || 'free').toLowerCase();
+  const plan = (row.plan || 'free').toLowerCase();
+  const status = (row.status || '').toLowerCase();
   const periodEnd = row.current_period_end;
-  if (!ACTIVE_STATUSES.has(plan)) {
+  if (!ACTIVE_STATUSES.has(status)) {
     return {
       plan,
       active: false,
       periodEnd,
-      reason: plan === 'expired' ? 'expired' : 'inactive-status',
+      reason: status === 'expired' ? 'expired' : 'inactive-status',
     };
   }
   const endMs = periodEnd ? Date.parse(periodEnd) : null;
@@ -47,7 +49,7 @@ export const evaluateEntitlement = (row: SubscriptionRow | null | undefined, now
 export const fetchEntitlement = async (userId: string): Promise<Entitlement> => {
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('status, current_period_end')
+    .select('plan, status, current_period_end')
     .eq('user_id', userId)
     .maybeSingle();
   if (error) {
