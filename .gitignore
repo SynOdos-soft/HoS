@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+/.freebuff
+.env
+/.freebuff
+/docs
+.env
+/docs

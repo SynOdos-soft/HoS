@@ -63,6 +63,11 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff,woff2}'],
+        // Self-heal stale installs: activate a downloaded service worker
+        // immediately instead of waiting for an in-app "Update now" click.
+        // Without this, a signed-out client can deadlock on a broken bundle.
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

@@ -1,5 +1,5 @@
 import type { CloudProvider, CloudProviderSnapshot } from './cloudProviders';
-import { registerProvider } from './cloudProviders';
+import { registerProvider, ACTIVE_PROVIDER_KEY } from './cloudProviders';
 import type { WeeklyLog, Preferences } from '../types';
 import {
   readIndex, writeIndex, readWeek as storeReadWeek, writeWeek as storeWriteWeek,
@@ -16,6 +16,8 @@ import {
  */
 
 const CONNECTED_FLAG = 'hos-drive-connected';
+/** Last OAuth-return failure, shown once in the Account tab (read-and-clear). */
+export const DRIVE_HANDSHAKE_ERROR_KEY = 'hos-drive-handshake-error';
 
 const provider: CloudProvider = {
   id: 'google-drive',
@@ -86,16 +88,43 @@ registerProvider(provider);
 /** Complete the OAuth return (?code=...&state=<verifier>) if present. Returns true when a handshake finished. */
 export const completeGoogleDriveHandshake = async (): Promise<boolean> => {
   const url = new URL(window.location.href);
+  // Google redirects back with ?error=... when consent is declined or the
+  // OAuth client is misconfigured. Record the reason for the Account tab
+  // instead of failing silently; an existing server-side connection (if any)
+  // is left untouched — the UI verifies against the broker.
+  const consentError = url.searchParams.get('error');
+  if (consentError && !url.searchParams.get('code')) {
+    localStorage.setItem(
+      DRIVE_HANDSHAKE_ERROR_KEY,
+      consentError === 'access_denied'
+        ? 'Consent was declined. To back up your logs, allow access when Google asks.'
+        : `Google rejected the sign-in (${consentError}).`
+    );
+    window.history.replaceState({}, '', window.location.pathname);
+    return false;
+  }
   const code = url.searchParams.get('code');
   const verifier = url.searchParams.get('state');
   if (!code || !verifier || !url.searchParams.get('scope')) return false;
   try {
     await exchangeCodeWithBroker(code, verifier);
     localStorage.setItem(CONNECTED_FLAG, 'true');
+    // Selection is now earned: only a completed broker exchange marks this
+    // provider active, so the Account card can never show a phantom "On".
+    localStorage.setItem(ACTIVE_PROVIDER_KEY, provider.id);
     window.history.replaceState({}, '', window.location.pathname);
     return true;
   } catch (e) {
     console.error('[google-drive] handshake failed', e);
+    localStorage.setItem(
+      DRIVE_HANDSHAKE_ERROR_KEY,
+      e instanceof Error ? e.message : 'Google authorization failed. Please try connecting again.'
+    );
+    // Roll back the pre-redirect selection: the server holds no tokens, so
+    // the Account card must return to "Connect Google Drive" instead of
+    // claiming a connection that was never established.
+    localStorage.removeItem(ACTIVE_PROVIDER_KEY);
+    localStorage.setItem(CONNECTED_FLAG, 'false');
     return false;
   }
 };

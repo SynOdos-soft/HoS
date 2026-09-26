@@ -9,7 +9,7 @@ import { useAuth } from '../lib/auth';
 import { useSyncStatus } from '../lib/useSyncStatus';
 import { syncNow } from '../utils/driveSync';
 import { getActiveProvider, setActiveProviderId, type CloudProvider } from '../utils/cloudProviders';
-import { googleDriveProvider } from '../utils/googleDriveProvider';
+import { googleDriveProvider, DRIVE_HANDSHAKE_ERROR_KEY } from '../utils/googleDriveProvider';
 import { getDriveHealth, type DriveHealth } from '../utils/driveStore';
 
 interface UserMenuProps {
@@ -42,6 +42,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   const { user, daysRemaining, validateSession } = useAuth();
   const { state: syncState, message: syncErrorMessage, online, lastSyncedAt } = useSyncStatus();
   const [syncingNow, setSyncingNow] = useState(false);
+  const [connectingProvider, setConnectingProvider] = useState(false);
   const [syncNowMsg, setSyncNowMsg] = useState<string | null>(null);
   const [health, setHealth] = useState<DriveHealth | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
@@ -70,14 +71,29 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     if (res.ok) window.setTimeout(() => setSyncNowMsg(null), 4000);
   };
 
-  const handleConnectProvider = (p: CloudProvider) => {
-    setActiveProviderId(p.id);
-    void p.connect(); // redirects to consent; returns via ?code=... handshake
+  const handleConnectProvider = async (p: CloudProvider) => {
+    setSyncNowMsg(null);
+    setConnectingProvider(true);
+    try {
+      // Redirects to Google consent; comes back with ?code=... and the
+      // handshake (which itself sets the active provider on success) runs
+      // in App.tsx. Nothing is marked connected until the broker exchange
+      // succeeds — a failed consent must not leave the card saying "On".
+      await p.connect();
+    } catch (e) {
+      console.error('[cloud] connect failed', e);
+      setSyncNowMsg(
+        e instanceof Error ? e.message : 'Could not start Google sign-in. Check your connection and try again.'
+      );
+    } finally {
+      setConnectingProvider(false);
+    }
   };
 
   const handleDisconnectProvider = async (p: CloudProvider) => {
     await p.disconnect();
     setActiveProviderId(null);
+    setVerifiedConnected(false);
     setSyncNowMsg(`${p.label} disconnected. Local data remains; backup & device sync paused.`);
   };
 
@@ -121,6 +137,34 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   React.useEffect(() => {
     if (activeTab === 'account' && provider) void refreshHealth();
   }, [activeTab, provider]);
+
+  // Server-verified connection state. "On" must mean the token broker
+  // actually holds Google tokens for this user — not that a button was once
+  // clicked. Verified when the Account tab opens and whenever the selected
+  // provider changes (e.g. right after the OAuth return handshake).
+  const [verifiedConnected, setVerifiedConnected] = useState<boolean | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    setVerifiedConnected(null);
+    if (!provider) {
+      setVerifiedConnected(false);
+      return;
+    }
+    provider.isConnected()
+      .then((ok: boolean) => { if (!cancelled) setVerifiedConnected(ok); })
+      .catch(() => { if (!cancelled) setVerifiedConnected(false); });
+    return () => { cancelled = true; };
+  }, [provider, activeTab]);
+
+  // Show an OAuth-return failure (consent declined, exchange error, …) once.
+  const [handshakeError, setHandshakeError] = useState<string | null>(null);
+  React.useEffect(() => {
+    const stored = localStorage.getItem(DRIVE_HANDSHAKE_ERROR_KEY);
+    if (stored) {
+      setHandshakeError(stored);
+      localStorage.removeItem(DRIVE_HANDSHAKE_ERROR_KEY);
+    }
+  }, []);
 
   const login = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/drive.appdata',
@@ -509,8 +553,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                   You can keep logging offline for {daysRemaining === 1 ? 'one more day' : `${daysRemaining ?? 7} more days`}. After that, one reconnect extends the window — this is also where a subscription will renew access.
                 </p>
-                <button className="btn-primary" onClick={handleRevalidate} disabled={syncingNow || !online}
-                  style={{ marginTop: '0.75rem', padding: '0.5rem 1rem', fontSize: '0.85rem', justifyContent: 'center' }}>
+                <button className="btn-primary btn-compact" onClick={handleRevalidate} disabled={syncingNow || !online}
+                  style={{ marginTop: '0.75rem' }}>
                   <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> Renew session now
                 </button>
               </div>
@@ -518,13 +562,25 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               {/* ---- Backup & device sync (optional cloud add-on) ---- */}
               <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-                  <Cloud size={16} color={provider ? 'var(--accent-blue)' : 'var(--text-secondary)'} />
+                  <Cloud size={16} color={verifiedConnected ? 'var(--accent-blue)' : 'var(--text-secondary)'} />
                   <strong style={{ fontSize: '0.95rem' }}>Backup &amp; device sync</strong>
                   <span style={{
                     marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 600,
-                    color: !provider ? 'var(--text-secondary)' : !online ? 'var(--text-secondary)' : syncState === 'error' ? 'var(--accent-red)' : syncState === 'syncing' ? 'var(--accent-blue)' : 'var(--accent-green)',
+                    color: !provider || verifiedConnected === false ? 'var(--text-secondary)' : !online ? 'var(--text-secondary)' : syncState === 'error' ? 'var(--accent-red)' : syncState === 'syncing' ? 'var(--accent-blue)' : 'var(--accent-green)',
                   }}>
-                    {!provider ? 'Optional — not connected' : !online ? 'Offline' : syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Error' : 'On'}
+                    {!provider
+                      ? 'Optional — not connected'
+                      : verifiedConnected === false
+                        ? 'Not connected'
+                        : verifiedConnected === null
+                          ? 'Checking…'
+                          : !online
+                            ? 'Offline'
+                            : syncState === 'syncing'
+                              ? 'Syncing…'
+                              : syncState === 'error'
+                                ? 'Error'
+                                : 'On'}
                   </span>
                 </div>
                 <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
@@ -532,10 +588,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                   automatic backup there and keep multiple devices in sync.
                 </p>
 
-                {!provider ? (
-                  <button className="btn-primary" onClick={() => handleConnectProvider(googleDriveProvider)} disabled={!online}
-                    style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', justifyContent: 'center' }}>
-                    <Cloud size={15} /> Connect Google Drive
+                {(!provider || verifiedConnected === false) ? (
+                  <button className="btn-primary btn-compact" onClick={() => handleConnectProvider(googleDriveProvider)} disabled={!online || connectingProvider}>
+                    {connectingProvider ? <RefreshCw size={15} className="spin" /> : <Cloud size={15} />} Connect Google Drive
                   </button>
                 ) : (
                   <>
@@ -544,8 +599,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                       <div><strong>Last sync:</strong> {fmtDateTime(lastSyncedAt)}</div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                      <button className="btn-primary" onClick={handleSyncNow} disabled={syncingNow || !online}
-                        style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', justifyContent: 'center' }}>
+                      <button className="btn-primary btn-compact" onClick={handleSyncNow} disabled={syncingNow || !online}>
                         <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> Sync now
                       </button>
                       <button onClick={() => handleDisconnectProvider(provider)} disabled={syncingNow}
@@ -554,6 +608,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                       </button>
                     </div>
                   </>
+                )}
+                {handshakeError && (
+                  <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.75rem', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', fontSize: '0.8rem', color: 'var(--accent-red)' }}>
+                    Google sign-in failed: {handshakeError}
+                  </div>
                 )}
                 {syncNowMsg && (
                   <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: syncNowMsg.startsWith('Up to date') || syncNowMsg.includes('renewed') || syncNowMsg.includes('disconnected') ? 'var(--accent-green)' : 'var(--accent-red)' }}>
@@ -576,7 +635,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                 </p>
                 {!preferences.cloudSyncToken ? (
                   <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
-                    <button className="btn-primary" onClick={() => login()} style={{ width: '100%', justifyContent: 'center' }}>
+                    <button className="btn-primary btn-compact" onClick={() => login()}>
                       Enable Encrypted Backup
                     </button>
                   </div>
@@ -599,18 +658,18 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <button
-                        className="btn-primary"
+                        className="btn-primary btn-compact"
                         onClick={handleManualSync}
                         disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
-                        style={{ flex: 1, justifyContent: 'center' }}
+                        style={{ flex: 1 }}
                       >
                         <Cloud size={16} /> Backup Now
                       </button>
                       <button
-                        className="btn-primary"
+                        className="btn-primary btn-compact"
                         onClick={handleRestore}
                         disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
-                        style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)' }}
+                        style={{ flex: 1, background: 'transparent', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)' }}
                       >
                         Restore Data
                       </button>

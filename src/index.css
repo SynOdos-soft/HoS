@@ -1929,6 +1929,16 @@ textarea:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
+/* Compact action button for card footers (Account hub, etc.). Companion to
+   .btn-primary — keep ALL small action buttons on this class so their sizing
+   can never drift apart again (no per-button padding/font overrides). */
+.btn-compact {
+  min-height: var(--control-height);
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  justify-content: center;
+}
+
 .btn-secondary {
   min-height: var(--control-height);
   padding: 0.5rem 1rem;
