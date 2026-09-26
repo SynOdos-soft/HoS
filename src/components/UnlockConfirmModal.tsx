@@ -15,8 +15,8 @@ export const UnlockConfirmModal: React.FC<UnlockConfirmModalProps> = ({ isOpen, 
           <p><strong>Warning:</strong> Unlocking a past day for editing is recorded in the forensic audit log for compliance.</p>
         </div>
         <div className="ui-modal-actions">
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
           <Button onClick={onConfirm}>Confirm unlock</Button>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
         </div>
       </div>
     </div>

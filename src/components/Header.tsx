@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, LogOut, Save, Download, Menu, X, Shield, LayoutDashboard, FileText, User } from 'lucide-react';
+import { Settings, LogOut, Save, Download, Menu, X, Shield, LayoutDashboard, FileText, User, Clock, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { useSyncStatus } from '../lib/useSyncStatus';
 
 interface HeaderProps {
   view: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences';
@@ -10,10 +11,48 @@ interface HeaderProps {
   onSavePreset?: () => void;
   onApplyPreset?: () => void;
   onRoadsidePDF?: () => void;
+  accountEmail?: string;
+  onSignOut?: () => void;
+  /** Days left in the offline grace window; null while auth is resolving. */
+  daysRemaining?: number | null;
 }
 
+/** Second line of the account card: offline window + cloud state (if any). */
+const AccountSubline: React.FC<{ daysRemaining?: number | null }> = ({ daysRemaining }) => {
+  const { state: syncState, online, driveConnected } = useSyncStatus();
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.72rem', opacity: 0.75, width: '100%', flexWrap: 'wrap' }}>
+      {typeof daysRemaining === 'number' && (
+        <span
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            color: daysRemaining <= 2 ? 'var(--accent-orange)' : undefined,
+            fontWeight: daysRemaining <= 2 ? 600 : undefined,
+          }}
+          title="Days you can keep logging without reconnecting to the internet"
+        >
+          <Clock size={12} />
+          {daysRemaining <= 0 ? 'Reconnect required' : daysRemaining === 1 ? '1 day offline left' : `${daysRemaining} days offline left`}
+        </span>
+      )}
+      {driveConnected && (
+        <span
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            color: !online ? 'var(--text-secondary)' : syncState === 'error' ? 'var(--accent-red)' : syncState === 'syncing' ? 'var(--accent-blue)' : 'var(--accent-green)',
+          }}
+          title={`Cloud sync: ${!online ? 'offline — edits will sync later' : syncState}`}
+        >
+          {!online ? <CloudOff size={12} /> : syncState === 'syncing' ? <RefreshCw size={12} className="spin" /> : syncState === 'error' ? <AlertCircle size={12} /> : <Cloud size={12} />}
+          {!online ? 'Offline' : syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Sync error' : 'Synced'}
+        </span>
+      )}
+    </span>
+  );
+};
+
 export const Header: React.FC<HeaderProps> = ({
-  view, onNavigate, onSave, onExportPDF, isSaving, onSavePreset, onApplyPreset, onRoadsidePDF
+  view, onNavigate, onSave, onExportPDF, isSaving, onSavePreset, onApplyPreset, onRoadsidePDF, accountEmail, onSignOut, daysRemaining
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -144,14 +183,32 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="menu-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="menu-section" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
                 <label>Account & Config</label>
-                <button className={`menu-item ${view === 'profile' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('profile'))}>
-                  <User size={20} /> User Preferences
+                {/* Everything account-related in one tappable summary card. */}
+                <button
+                  className={`menu-item ${view === 'profile' ? 'active' : ''}`}
+                  onClick={() => handleAction(() => onNavigate('profile'))}
+                  title="Open account hub"
+                  style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%' }}>
+                    <User size={20} style={{ flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, wordBreak: 'break-all', textAlign: 'left' }}>
+                      {accountEmail || 'My Account'}
+                    </span>
+                  </span>
+                  <AccountSubline daysRemaining={daysRemaining} />
                 </button>
                 <button className={`menu-item ${view === 'preferences' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('preferences'))}>
                   <Settings size={20} /> System Settings
                 </button>
               </div>
-              <button className="menu-item logout" onClick={() => setIsMenuOpen(false)}>
+              <button
+                className="menu-item logout"
+                onClick={() => {
+                  if (onSignOut) onSignOut();
+                  setIsMenuOpen(false);
+                }}
+              >
                 <LogOut size={20} /> Sign Out
               </button>
             </div>

@@ -1587,6 +1587,40 @@ html.light-mode .hour-block.hour-highlight {
   }
 }
 
+/* Toast slide-in (bottom right) */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Toast fade-out (ease) */
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+}
+
+/* Toast expiry countdown bar (drains left-to-right) */
+@keyframes toast-timer {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
 /* Autocomplete Option Hover Effect */
 .autocomplete-option:hover {
   background: var(--glass-border) !important;
@@ -2277,6 +2311,26 @@ textarea:focus-visible {
 
 .ui-modal-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
   gap: var(--space-2);
+}
+
+/* Align the library buttons with the app's control geometry */
+.ui-modal-actions button {
+  min-height: var(--control-height);
+  border-radius: var(--radius);
+  padding-inline: 1.25rem;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .ui-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .ui-modal-actions button {
+    width: 100%;
+  }
 }

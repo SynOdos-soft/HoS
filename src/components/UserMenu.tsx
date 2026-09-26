@@ -1,10 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { Preferences, VehicleProfile, OperatorCompany, WeeklyLog } from '../types';
-import { Save, Plus, Trash2, Pencil, X, Cloud, Lock, CheckCircle, AlertCircle, User, Truck, Building2 } from 'lucide-react';
+import { Save, Plus, Trash2, Pencil, X, Cloud, Lock, CheckCircle, AlertCircle, User, Truck, Building2, ShieldCheck, Clock, RefreshCw, KeyRound, Activity } from 'lucide-react';
 import { useGoogleLogin, googleLogout } from '@react-oauth/google';
 import { uploadToGoogleDrive, downloadFromGoogleDrive, encryptData, decryptData } from '../utils/cloudSync';
 import { saveLogsBulk } from '../utils/storage';
 import { useDragScroll } from '../lib/useDragScroll';
+import { useAuth } from '../lib/auth';
+import { useSyncStatus } from '../lib/useSyncStatus';
+import { syncNow } from '../utils/driveSync';
+import { getActiveProvider, setActiveProviderId, type CloudProvider } from '../utils/cloudProviders';
+import { googleDriveProvider } from '../utils/googleDriveProvider';
+import { getDriveHealth, type DriveHealth } from '../utils/driveStore';
 
 interface UserMenuProps {
   preferences: Preferences;
@@ -26,17 +32,95 @@ const OCCUPATIONS = [
 ];
 
 const TABS = [
+  { id: 'account', label: 'Account', icon: ShieldCheck },
   { id: 'personal', label: 'Personal Info', icon: User },
   { id: 'vehicles', label: 'My Vehicles', icon: Truck },
   { id: 'companies', label: 'Operator Companies', icon: Building2 },
-  { id: 'sync', label: 'Cloud Sync', icon: Cloud },
 ] as const;
 
 export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences, onClose, logs = [] }) => {
-  const [activeTab, setActiveTab] = useState<'personal' | 'vehicles' | 'companies' | 'sync'>('personal');
+  const { user, daysRemaining, validateSession } = useAuth();
+  const { state: syncState, message: syncErrorMessage, online, lastSyncedAt } = useSyncStatus();
+  const [syncingNow, setSyncingNow] = useState(false);
+  const [syncNowMsg, setSyncNowMsg] = useState<string | null>(null);
+  const [health, setHealth] = useState<DriveHealth | null>(null);
+  const [healthBusy, setHealthBusy] = useState(false);
+  const provider: CloudProvider | null = getActiveProvider();
+
+  const refreshHealth = async () => {
+    setHealthBusy(true);
+    try {
+      const h = await getDriveHealth();
+      setHealth(h);
+    } catch (e) {
+      console.error('[drive] health check failed', e);
+      setHealth({ connected: false, weeksStored: 0, bytesUsed: 0, indexOk: false, prefsOk: false });
+    } finally {
+      setHealthBusy(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    if (syncingNow) return;
+    setSyncNowMsg(null);
+    setSyncingNow(true);
+    const res = await syncNow();
+    setSyncingNow(false);
+    setSyncNowMsg(res.ok ? 'Up to date.' : (res.error || 'Sync failed.'));
+    if (res.ok) window.setTimeout(() => setSyncNowMsg(null), 4000);
+  };
+
+  const handleConnectProvider = (p: CloudProvider) => {
+    setActiveProviderId(p.id);
+    void p.connect(); // redirects to consent; returns via ?code=... handshake
+  };
+
+  const handleDisconnectProvider = async (p: CloudProvider) => {
+    await p.disconnect();
+    setActiveProviderId(null);
+    setSyncNowMsg(`${p.label} disconnected. Local data remains; backup & device sync paused.`);
+  };
+
+  const handleRevalidate = async () => {
+    setSyncNowMsg(null);
+    setSyncingNow(true);
+    const res = await validateSession();
+    setSyncingNow(false);
+    setSyncNowMsg(res.ok ? 'Session renewed.' : (res.error || 'Could not reach the server.'));
+    if (res.ok) window.setTimeout(() => setSyncNowMsg(null), 4000);
+  };
+
+  const fmtDateTime = (iso: string) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  const daysUntil = (dateStr: string): number | null => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr);
+    if (Number.isNaN(d.getTime())) return null;
+    return Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  };
+
+  const credentials = [
+    { label: 'Driver license', expiry: preferences.userProfile?.licenseExpiry },
+    { label: 'Medical exam', expiry: preferences.userProfile?.medicalExpiry },
+    { label: 'First aid', expiry: preferences.userProfile?.firstAidExpiry },
+  ]
+    .map(c => ({ ...c, days: daysUntil(c.expiry || '') }))
+    .filter(c => c.days !== null)
+    .sort((a, b) => (a.days as number) - (b.days as number));
+
+  const [activeTab, setActiveTab] = useState<'account' | 'personal' | 'vehicles' | 'companies'>('account');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncMessage, setSyncMessage] = useState('');
   const [pendingSyncAction, setPendingSyncAction] = useState<'backup' | 'restore' | null>(null);
+
+  // Refresh the Drive health card whenever the Account tab is shown.
+  React.useEffect(() => {
+    if (activeTab === 'account' && provider) void refreshHealth();
+  }, [activeTab, provider]);
 
   const login = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/drive.appdata',
@@ -86,9 +170,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       setPreferences(p => ({ ...p, cloudSyncLastSync: new Date().toISOString() }));
       setSyncStatus('success');
       setSyncMessage('Sync complete!');
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      const errMsg = e.message || String(e);
+      const errMsg = e instanceof Error ? e.message : String(e);
       if (errMsg.includes('401') || errMsg.includes('auth') || errMsg.includes('credential')) {
         setPendingSyncAction('backup');
         setSyncStatus('error');
@@ -128,9 +212,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       setTimeout(() => {
         window.location.reload();
       }, 1500);
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      const errMsg = e.message || String(e);
+      const errMsg = e instanceof Error ? e.message : String(e);
       if (errMsg.includes('401') || errMsg.includes('auth') || errMsg.includes('credential')) {
         setPendingSyncAction('restore');
         setSyncStatus('error');
@@ -387,6 +471,294 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {activeTab === 'account' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              {/* ---- Identity ---- */}
+              <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
+                  background: 'var(--accent-blue)', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '1.2rem', fontWeight: 700,
+                }}>
+                  {(preferences.userProfile?.name || user?.email || '?').trim().charAt(0).toUpperCase()}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '1.02rem' }}>{preferences.userProfile?.name || 'Unnamed driver'}</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{user?.email || '—'}</div>
+                  {preferences.userProfile?.occupations?.length > 0 && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{preferences.userProfile.occupations.join(' · ')}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* ---- Access (offline grace window) ---- */}
+              <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                  <Clock size={16} color="var(--accent-blue)" />
+                  <strong style={{ fontSize: '0.95rem' }}>Access</strong>
+                  {typeof daysRemaining === 'number' && (
+                    <span style={{
+                      marginLeft: 'auto', fontSize: '0.8rem', fontWeight: 600,
+                      color: daysRemaining <= 2 ? 'var(--accent-orange)' : 'var(--accent-green)',
+                    }}>
+                      {daysRemaining <= 0 ? 'Reconnect required' : daysRemaining === 1 ? '1 day left' : `${daysRemaining} days left`}
+                    </span>
+                  )}
+                </div>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  You can keep logging offline for {daysRemaining === 1 ? 'one more day' : `${daysRemaining ?? 7} more days`}. After that, one reconnect extends the window — this is also where a subscription will renew access.
+                </p>
+                <button className="btn-primary" onClick={handleRevalidate} disabled={syncingNow || !online}
+                  style={{ marginTop: '0.75rem', padding: '0.5rem 1rem', fontSize: '0.85rem', justifyContent: 'center' }}>
+                  <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> Renew session now
+                </button>
+              </div>
+
+              {/* ---- Backup & device sync (optional cloud add-on) ---- */}
+              <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                  <Cloud size={16} color={provider ? 'var(--accent-blue)' : 'var(--text-secondary)'} />
+                  <strong style={{ fontSize: '0.95rem' }}>Backup &amp; device sync</strong>
+                  <span style={{
+                    marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 600,
+                    color: !provider ? 'var(--text-secondary)' : !online ? 'var(--text-secondary)' : syncState === 'error' ? 'var(--accent-red)' : syncState === 'syncing' ? 'var(--accent-blue)' : 'var(--accent-green)',
+                  }}>
+                    {!provider ? 'Optional — not connected' : !online ? 'Offline' : syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Error' : 'On'}
+                  </span>
+                </div>
+                <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Your data always lives on this device. Connect a cloud to add an
+                  automatic backup there and keep multiple devices in sync.
+                </p>
+
+                {!provider ? (
+                  <button className="btn-primary" onClick={() => handleConnectProvider(googleDriveProvider)} disabled={!online}
+                    style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', justifyContent: 'center' }}>
+                    <Cloud size={15} /> Connect Google Drive
+                  </button>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'grid', gap: '0.2rem' }}>
+                      <div><strong>Provider:</strong> {provider.label}</div>
+                      <div><strong>Last sync:</strong> {fmtDateTime(lastSyncedAt)}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                      <button className="btn-primary" onClick={handleSyncNow} disabled={syncingNow || !online}
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', justifyContent: 'center' }}>
+                        <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> Sync now
+                      </button>
+                      <button onClick={() => handleDisconnectProvider(provider)} disabled={syncingNow}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-red)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.8rem' }}>
+                        Disconnect
+                      </button>
+                    </div>
+                  </>
+                )}
+                {syncNowMsg && (
+                  <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: syncNowMsg.startsWith('Up to date') || syncNowMsg.includes('renewed') || syncNowMsg.includes('disconnected') ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                    {syncNowMsg}
+                  </div>
+                )}
+              </div>
+
+              {/* ---- Manual encrypted backup (optional extra, same tab as requested) ---- */}
+              <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <Lock size={16} color="var(--accent-blue)" />
+                  <strong style={{ fontSize: '0.95rem' }}>Encrypted Cloud Sync</strong>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>optional manual backup</span>
+                </div>
+                <p style={{ margin: '0 0 0.9rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Writes a PIN-encrypted copy of all data to a hidden folder on your
+                  Google Drive. Independent of the automatic sync above — an extra
+                  safety net you control.
+                </p>
+                {!preferences.cloudSyncToken ? (
+                  <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                    <button className="btn-primary" onClick={() => login()} style={{ width: '100%', justifyContent: 'center' }}>
+                      Enable Encrypted Backup
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div className="input-group" style={{ margin: 0 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Lock size={14} /> Encryption PIN / Passphrase
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="Required to encrypt/decrypt data"
+                        value={preferences.cloudSyncPin}
+                        onChange={e => setPreferences(p => ({ ...p, cloudSyncPin: e.target.value }))}
+                      />
+                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'var(--accent-orange)' }}>
+                        If you lose this PIN, your backup cannot be recovered.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <button
+                        className="btn-primary"
+                        onClick={handleManualSync}
+                        disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
+                        style={{ flex: 1, justifyContent: 'center' }}
+                      >
+                        <Cloud size={16} /> Backup Now
+                      </button>
+                      <button
+                        className="btn-primary"
+                        onClick={handleRestore}
+                        disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
+                        style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)' }}
+                      >
+                        Restore Data
+                      </button>
+                    </div>
+
+                    {syncMessage && (
+                      <div style={{
+                        padding: '0.75rem',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                        fontSize: '0.82rem',
+                        background: syncStatus === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                        color: syncStatus === 'error' ? 'var(--accent-red)' : 'var(--status-on-duty)',
+                        flexWrap: 'wrap'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 auto' }}>
+                          {syncStatus === 'error' ? <AlertCircle size={16} style={{ flexShrink: 0 }} /> : <CheckCircle size={16} style={{ flexShrink: 0 }} />}
+                          <span>{syncMessage}</span>
+                        </div>
+                        {pendingSyncAction && (
+                          <button
+                            className="btn-primary"
+                            onClick={() => login()}
+                            style={{
+                              padding: '4px 12px',
+                              fontSize: '0.75rem',
+                              background: 'var(--accent-blue)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}
+                          >
+                            Reconnect & Retry
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {preferences.cloudSyncLastSync && (
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
+                        Last backup: {new Date(preferences.cloudSyncLastSync).toLocaleString()}
+                      </p>
+                    )}
+
+                    <button
+                      onClick={handleLogout}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent-red)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      Disconnect encrypted backup
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ---- Connection health (Drive storage snapshot) ---- */}
+              <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                  <Activity size={16} color={provider ? 'var(--accent-blue)' : 'var(--text-secondary)'} />
+                  <strong style={{ fontSize: '0.95rem' }}>Connection health</strong>
+                  <button
+                    onClick={refreshHealth}
+                    disabled={healthBusy || !online}
+                    title="Refresh from Google Drive"
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: healthBusy ? 'wait' : 'pointer', display: 'flex', padding: 4 }}
+                  >
+                    <RefreshCw size={14} className={healthBusy ? 'spin' : ''} />
+                  </button>
+                </div>
+                {!provider ? (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    Running local-only. Connect a cloud above to see storage and
+                    sync health here.
+                  </div>
+                ) : !health ? (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    {healthBusy ? 'Checking Google Drive…' : 'No health data yet.'}
+                  </div>
+                ) : !health.connected ? (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--accent-red)' }}>
+                    Google Drive is not reachable right now.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.35rem 1rem', alignItems: 'baseline' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Weeks stored</span>
+                    <span style={{ fontWeight: 600 }}>{health.weeksStored}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Storage used</span>
+                    <span style={{ fontWeight: 600 }}>
+                      {health.bytesUsed >= 1024 * 1024
+                        ? `${(health.bytesUsed / (1024 * 1024)).toFixed(2)} MB`
+                        : `${Math.max(1, Math.round(health.bytesUsed / 1024))} KB`}
+                    </span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Index file</span>
+                    <span style={{ color: health.indexOk ? 'var(--accent-green)' : 'var(--accent-orange)', fontWeight: 600 }}>
+                      {health.indexOk ? 'OK' : 'Missing (rebuilt on next sync)'}
+                    </span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Preferences file</span>
+                    <span style={{ color: health.prefsOk ? 'var(--accent-green)' : 'var(--accent-orange)', fontWeight: 600 }}>
+                      {health.prefsOk ? 'OK' : 'Missing (recreated on next sync)'}
+                    </span>
+                  </div>
+                )}
+                {syncState === 'error' && syncErrorMessage && (
+                  <div style={{ marginTop: '0.6rem', fontSize: '0.78rem', color: 'var(--accent-red)' }}>
+                    <strong>Last error:</strong> {syncErrorMessage}
+                  </div>
+                )}
+              </div>
+
+              {/* ---- Credential expiries ---- */}
+              {credentials.length > 0 && (
+                <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                    <KeyRound size={16} color="var(--accent-blue)" />
+                    <strong style={{ fontSize: '0.95rem' }}>Credentials</strong>
+                  </div>
+                  <div style={{ display: 'grid', gap: '0.45rem', fontSize: '0.85rem' }}>
+                    {credentials.map(c => {
+                      const d = c.days as number;
+                      const urgent = d <= 30;
+                      return (
+                        <div key={c.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <span>{c.label}</span>
+                          <span style={{
+                            fontWeight: urgent ? 600 : 400,
+                            color: d <= 7 ? 'var(--accent-red)' : urgent ? 'var(--accent-orange)' : 'var(--text-secondary)',
+                          }}>
+                            {d <= 0 ? `EXPIRED ${Math.abs(d)}d ago` : `${d}d left`}
+                            <span style={{ opacity: 0.7, marginLeft: 6, fontWeight: 400 }}>({c.expiry})</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p style={{ margin: '0.6rem 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                    Edit dates under <em>Personal Info</em>.
+                  </p>
+                </div>
+              )}
+
+            </div>
+          )}
+
           {activeTab === 'personal' && (
             <>
               <div className="input-group">
@@ -718,116 +1090,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
             </div>
           )}
 
-          {activeTab === 'sync' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Cloud size={24} color="var(--accent-blue)" />
-                <div>
-                  <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Encrypted Cloud Sync</h3>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Securely backup to your Google Drive AppData folder.</p>
-                </div>
-              </div>
 
-              {!preferences.cloudSyncToken ? (
-                <div className="glass-panel" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                  <p style={{ fontSize: '0.9rem', marginBottom: '1.5rem', color: 'var(--text-primary)' }}>
-                    Enable zero-knowledge, encrypted syncing. Your data is stored safely in a hidden folder on your personal Google Drive, immune to accidental deletion.
-                  </p>
-                  <button className="btn-primary" onClick={() => login()} style={{ width: '100%', justifyContent: 'center' }}>
-                    Connect Google Drive
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div className="input-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Lock size={14} /> Encryption PIN / Passphrase
-                    </label>
-                    <input 
-                      type="password" 
-                      placeholder="Required to encrypt/decrypt data"
-                      value={preferences.cloudSyncPin}
-                      onChange={e => setPreferences(p => ({ ...p, cloudSyncPin: e.target.value }))}
-                    />
-                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--accent-orange)' }}>
-                      If you lose this PIN, your backup cannot be recovered.
-                    </p>
-                  </div>
 
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                    <button 
-                      className="btn-primary" 
-                      onClick={handleManualSync} 
-                      disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
-                      style={{ flex: 1, justifyContent: 'center' }}
-                    >
-                      <Cloud size={16} /> Backup Now
-                    </button>
-                    <button 
-                      className="btn-primary" 
-                      onClick={handleRestore} 
-                      disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
-                      style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)' }}
-                    >
-                      Restore Data
-                    </button>
-                  </div>
 
-                  {syncMessage && (
-                    <div style={{ 
-                      padding: '0.75rem', 
-                      borderRadius: '8px', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between',
-                      gap: '0.5rem',
-                      fontSize: '0.85rem',
-                      background: syncStatus === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                      color: syncStatus === 'error' ? 'var(--accent-red)' : 'var(--status-on-duty)',
-                      flexWrap: 'wrap'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 auto' }}>
-                        {syncStatus === 'error' ? <AlertCircle size={16} style={{ flexShrink: 0 }} /> : <CheckCircle size={16} style={{ flexShrink: 0 }} />}
-                        <span>{syncMessage}</span>
-                      </div>
-                      {pendingSyncAction && (
-                        <button
-                          className="btn-primary"
-                          onClick={() => login()}
-                          style={{
-                            padding: '4px 12px',
-                            fontSize: '0.75rem',
-                            background: 'var(--accent-blue)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                          }}
-                        >
-                          Reconnect & Retry
-                        </button>
-                      )}
-                    </div>
-                  )}
 
-                  {preferences.cloudSyncLastSync && (
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
-                      Last synced: {new Date(preferences.cloudSyncLastSync).toLocaleString()}
-                    </p>
-                  )}
-
-                  <button 
-                    onClick={handleLogout} 
-                    style={{ background: 'none', border: 'none', color: 'var(--accent-red)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.85rem', marginTop: '1rem' }}
-                  >
-                    Disconnect Google Drive
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

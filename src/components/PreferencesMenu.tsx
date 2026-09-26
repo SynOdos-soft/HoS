@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Preferences, APP_VERSION } from '../types';
 import { t } from '../utils/i18n';
-import { Settings, Save, Download, Info, SlidersHorizontal, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Settings, Save, Download, Info, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { useDragScroll } from '../lib/useDragScroll';
 
 interface PreferencesMenuProps {
@@ -540,12 +540,6 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                     </button>
                   )}
                 </div>
-                {updateCheckStatus === 'up-to-date' && (
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                    <CheckCircle2 size={14} color="var(--accent-green)" />
-                    You're on the latest version (v{APP_VERSION})
-                  </p>
-                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {VERSIONS.map((v, i) => (
                     <div key={i} style={{
