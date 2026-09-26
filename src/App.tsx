@@ -19,7 +19,7 @@ import { SteeringWheel } from './components/Icons';
 import { useAuth } from './lib/auth';
 import { SignIn } from './components/SignIn';
 import { Paywall } from './components/Paywall';
-import { startCloudSync, stopCloudSync, setCloudSyncPreferences } from './utils/driveSync';
+import { startCloudSync, stopCloudSync, setCloudSyncPreferences, isCloudSyncRunning } from './utils/driveSync';
 import { getActiveProvider, getActiveProviderId } from './utils/cloudProviders';
 import { completeGoogleDriveHandshake } from './utils/googleDriveProvider';
 
@@ -76,13 +76,21 @@ const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMeta
 export default function App() {
   const { session, user, loading: authLoading, signOut, authFresh, daysRemaining } = useAuth();
 
+  // Bumped when the OAuth handshake completes so the boot effect below
+  // re-evaluates and starts the sync engine. The provider id is only persisted
+  // AFTER the token exchange finishes, which is later than the first boot run.
+  const [driveHandshakeAt, setDriveHandshakeAt] = useState(0);
+
   // Optional cloud connection (Google Drive today). The app is fully
   // functional without it; this only enables backup + device sync. The flag
   // is maintained so other modules can read connection state cheaply.
   useEffect(() => {
     // Complete the OAuth return if we came back from Google's consent screen.
     void completeGoogleDriveHandshake().then(done => {
-      if (done) localStorage.setItem('hos-drive-connected', 'true');
+      if (done) {
+        localStorage.setItem('hos-drive-connected', 'true');
+        setDriveHandshakeAt(Date.now());
+      }
     });
     if (!session) return;
     let cancelled = false;
@@ -290,10 +298,11 @@ export default function App() {
       autoLoadCurrentWeek();
     }
     if (getActiveProviderId()) {
-      startCloudSync(preferences);
+      // Idempotent: a handshake-triggered rerun must not bounce a running engine.
+      if (!isCloudSyncRunning()) startCloudSync(preferences);
       return () => stopCloudSync();
     }
-  }, [authLoading, session?.user?.id]);
+  }, [authLoading, session?.user?.id, driveHandshakeAt]);
 
   const applyLastUsedVehicle = (day: DayEntry, fallbackPlate: string) => {
     const lastUsedPlate = getLastUsedVehiclePlate();

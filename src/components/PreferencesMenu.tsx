@@ -20,6 +20,14 @@ const VERSIONS = [
   {
     version: APP_VERSION,
     date: '2026-09-26',
+    fixes: [
+      'Backup & sync now starts reliably right after connecting Google Drive — the status card no longer said "Sync is not running" while Drive was in fact connected.',
+      'All dates in the app now use one unambiguous format (YYYY/MM/DD), identical on every device.'
+    ]
+  },
+  {
+    version: '0.30.0',
+    date: '2026-09-26',
     features: [
       'Accounts are here: sign in with Google or email — your log book now follows you across devices.',
       'Optional Google Drive backup: connect once and every save is backed up automatically and kept in sync between your devices.',

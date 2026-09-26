@@ -11,6 +11,7 @@ import { syncNow } from '../utils/driveSync';
 import { getActiveProvider, setActiveProviderId, type CloudProvider } from '../utils/cloudProviders';
 import { googleDriveProvider, DRIVE_HANDSHAKE_ERROR_KEY } from '../utils/googleDriveProvider';
 import { getDriveHealth, type DriveHealth } from '../utils/driveStore';
+import { formatDateIso, formatDateTimeIso } from '../utils/formatDate';
 
 interface UserMenuProps {
   preferences: Preferences;
@@ -108,8 +109,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
   const fmtDateTime = (iso: string) => {
     if (!iso) return '—';
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    return formatDateTimeIso(iso);
   };
 
   const daysUntil = (dateStr: string): number | null => {
@@ -368,19 +368,14 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     if (!raw) return '';
     const d = new Date(raw.length === 10 ? `${raw}T00:00:00` : raw);
     if (Number.isNaN(d.getTime())) return raw;
-    return raw.includes('T')
-      ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-      : d.toLocaleDateString(undefined, { dateStyle: 'medium' });
+    return raw.includes('T') ? formatDateTimeIso(d) : formatDateIso(d);
   };
 
   const formatInspectionMonth = (raw: string) => {
     if (!raw) return '';
     // Accept YYYY-MM (native month input) and legacy full dates
-    const m = /^((\d{4})-(\d{2}))(?:-\d{2})?$/.exec(raw);
-    if (m) {
-      const d = new Date(`${m[1]}-15T00:00:00`);
-      if (!Number.isNaN(d.getTime())) return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-    }
+    const m = /^(\d{4})-(\d{2})/.exec(raw);
+    if (m) return `${m[1]}/${m[2]}`;
     return raw;
   };
 
@@ -716,7 +711,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
                     {preferences.cloudSyncLastSync && (
                       <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
-                        Last backup: {new Date(preferences.cloudSyncLastSync).toLocaleString()}
+                        Last backup: {formatDateTimeIso(preferences.cloudSyncLastSync)}
                       </p>
                     )}
 
