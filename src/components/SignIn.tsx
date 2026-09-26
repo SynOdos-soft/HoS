@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Truck, Mail, Loader2, WifiOff, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { AuthUpdateBanner } from './AuthUpdateBanner';
 
 /**
  * Full-screen gate shown whenever there is no authenticated session.
@@ -61,6 +62,7 @@ export const SignIn: React.FC = () => {
       padding: '1.5rem',
       background: 'var(--bg-primary, #0f172a)',
     }}>
+      <AuthUpdateBanner />
       <div className="glass-panel" style={{
         width: '100%',
         maxWidth: 420,

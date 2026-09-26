@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CreditCard, RefreshCw, Loader2, ShieldCheck, Cloud, Check } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { AuthUpdateBanner } from './AuthUpdateBanner';
 
 /**
  * Shown when the session-renewal entitlement check denies extension: the
@@ -35,6 +36,7 @@ export const Paywall: React.FC = () => {
       padding: '1.5rem',
       background: 'var(--bg-primary, #0f172a)',
     }}>
+      <AuthUpdateBanner />
       <div className="glass-panel" style={{
         width: '100%', maxWidth: 440, padding: '2rem',
         display: 'flex', flexDirection: 'column', gap: '1.1rem', textAlign: 'center',

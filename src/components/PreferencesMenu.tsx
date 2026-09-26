@@ -19,6 +19,30 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-09-26',
+    features: [
+      'Accounts are here: sign in with Google or email — your log book now follows you across devices.',
+      'Optional Google Drive backup: connect once and every save is backed up automatically and kept in sync between your devices.',
+      'Every new account starts on the founder plan — no paywall while billing is being finished.'
+    ],
+    fixes: [
+      'Apps stuck on an old version now update themselves — no more being trapped on a broken screen.',
+      'Update banners now also appear on the sign-in and subscription screens.',
+      'Sign-in problems report the real cause instead of claiming you are offline.',
+      'Unified the sizes of the action buttons on the Account screen.'
+    ]
+  },
+  {
+    version: '0.21.4',
+    date: '2026-09-25',
+    fixes: [
+      'Google sign-in problems now show a clear error message in the Account screen instead of failing silently.',
+      'Account screen action buttons are now one consistent size.',
+      'App updates install themselves reliably instead of waiting on a button that might never be reachable.'
+    ]
+  },
+  {
+    version: '0.21.3',
     date: '2026-09-22',
     ui: [
       'Added a "Check for updates" button next to Version History in System Settings.',
