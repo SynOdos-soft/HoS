@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, supabaseConfigured } from '../utils/supabaseClient';
 import { fetchEntitlement, type Entitlement } from '../utils/entitlements';
 
 interface AuthContextValue {
@@ -61,6 +61,10 @@ const friendlyAuthError = (message: string): string => {
   if (m.includes('failed to fetch') || m.includes('network')) return 'No connection. Sign-in requires internet — your logs stay safe on this device.';
   return message;
 };
+
+/** Error returned by auth paths when the build itself lacks Supabase config. */
+const NOT_CONFIGURED_ERROR =
+  'Sign-in is not configured in this deployment. Your logs are safe on this device — the app was built without the server connection settings.';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -130,11 +134,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithPassword = useCallback(async (email: string, password: string) => {
+    if (!supabaseConfigured) return { error: NOT_CONFIGURED_ERROR };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error ? friendlyAuthError(error.message) : null };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
+    if (!supabaseConfigured) return { error: NOT_CONFIGURED_ERROR, needsConfirmation: false };
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: friendlyAuthError(error.message), needsConfirmation: false };
     // If the project requires email confirmation, no session comes back.
@@ -142,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!supabaseConfigured) return { error: NOT_CONFIGURED_ERROR };
     const redirectTo = `${window.location.origin}/`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -153,6 +160,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const validateSession = useCallback(async (): Promise<{ ok: boolean; error: string | null }> => {
+    // An unconfigured build has no server to validate against: treat the
+    // session as stale and surface the deployment problem honestly.
+    if (!supabaseConfigured) {
+      return { ok: false, error: NOT_CONFIGURED_ERROR };
+    }
     // Forces a network round-trip to Supabase Auth; requires internet.
     const { data, error } = await supabase.auth.refreshSession();
     if (error || !data.session) {

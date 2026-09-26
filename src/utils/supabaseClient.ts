@@ -18,7 +18,14 @@ export const getDeviceId = (): string => {
   return id;
 };
 
-if (!supabaseUrl || !supabaseAnonKey) {
+/**
+ * True when VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY were baked into the
+ * build. Auth paths check this so a misconfigured deployment reports the real
+ * problem instead of a misleading network error.
+ */
+export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!supabaseConfigured) {
   // Fail loudly at boot rather than silently disabling accounts: a missing
   // publishable key is a deployment mistake, not a runtime condition.
   console.error(
