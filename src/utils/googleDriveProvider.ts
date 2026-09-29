@@ -9,6 +9,7 @@ import {
   buildGoogleConsentUrl, exchangeCodeWithBroker, getGoogleAccessToken,
   isDriveConnected, revokeDriveConnection,
 } from './driveBroker';
+import { clearGoogleOAuthTransaction, getGoogleOAuthVerifier } from './googleOAuthState';
 
 /**
  * Google Drive (AppData folder) provider.
@@ -35,7 +36,7 @@ const provider: CloudProvider = {
 
   async connect() {
     const { url } = await buildGoogleConsentUrl();
-    window.location.href = url; // returns with ?code=...&state=<verifier>
+    window.location.href = url; // returns with ?code=...&state=<tab-bound nonce>
   },
 
   async disconnect() {
@@ -94,6 +95,8 @@ export const completeGoogleDriveHandshake = async (): Promise<boolean> => {
   // is left untouched — the UI verifies against the broker.
   const consentError = url.searchParams.get('error');
   if (consentError && !url.searchParams.get('code')) {
+    const returnedState = url.searchParams.get('state');
+    if (returnedState) clearGoogleOAuthTransaction(returnedState);
     localStorage.setItem(
       DRIVE_HANDSHAKE_ERROR_KEY,
       consentError === 'access_denied'
@@ -104,10 +107,19 @@ export const completeGoogleDriveHandshake = async (): Promise<boolean> => {
     return false;
   }
   const code = url.searchParams.get('code');
-  const verifier = url.searchParams.get('state');
-  if (!code || !verifier || !url.searchParams.get('scope')) return false;
+  const returnedState = url.searchParams.get('state');
+  if (!code || !returnedState || !url.searchParams.get('scope')) return false;
+
+  const verifier = getGoogleOAuthVerifier(returnedState);
+  if (!verifier) {
+    localStorage.setItem(DRIVE_HANDSHAKE_ERROR_KEY, 'Google authorization could not be verified in this browser tab. Please connect again.');
+    window.history.replaceState({}, '', window.location.pathname);
+    return false;
+  }
+
   try {
     await exchangeCodeWithBroker(code, verifier);
+    clearGoogleOAuthTransaction(returnedState);
     localStorage.setItem(CONNECTED_FLAG, 'true');
     // Selection is now earned: only a completed broker exchange marks this
     // provider active, so the Account card can never show a phantom "On".
@@ -115,6 +127,8 @@ export const completeGoogleDriveHandshake = async (): Promise<boolean> => {
     window.history.replaceState({}, '', window.location.pathname);
     return true;
   } catch (e) {
+    clearGoogleOAuthTransaction(returnedState);
+    window.history.replaceState({}, '', window.location.pathname);
     console.error('[google-drive] handshake failed', e);
     localStorage.setItem(
       DRIVE_HANDSHAKE_ERROR_KEY,

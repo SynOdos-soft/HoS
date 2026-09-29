@@ -19,6 +19,14 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-09-29',
+    security: [
+      'Google Drive connection now binds OAuth state to this browser tab and keeps the PKCE verifier out of the redirect URL.',
+      'Google Drive token access now requires an active subscription checked server-side.'
+    ]
+  },
+  {
+    version: '0.30.1',
     date: '2026-09-26',
     fixes: [
       'Backup & sync now starts reliably right after connecting Google Drive — the status card no longer said "Sync is not running" while Drive was in fact connected.',
@@ -582,6 +590,15 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                         <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>v{v.version}</h4>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{v.date}</span>
                       </div>
+
+                      {v.security && v.security.length > 0 && (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>Security</span>
+                          <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            {v.security.map((item, j) => <li key={j}>{item}</li>)}
+                          </ul>
+                        </div>
+                      )}
 
                       {v.ui && v.ui.length > 0 && (
                         <div style={{ marginBottom: '0.75rem' }}>

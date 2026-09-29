@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { createGoogleOAuthState, storeGoogleOAuthTransaction } from './googleOAuthState';
 
 /**
  * Client for the google-token-broker Edge Function.
@@ -62,11 +63,14 @@ const brokerCall = async (payload: Record<string, unknown>): Promise<Response> =
 };
 
 /**
- * Build the Google OAuth consent URL (code flow + PKCE). The verifier is
- * returned to the caller, which must keep it until the redirect comes back.
+ * Build the Google OAuth consent URL (code flow + PKCE). The independent
+ * state nonce and verifier are saved in tab-scoped sessionStorage before
+ * navigating; neither security value is exposed in the URL.
  */
-export const buildGoogleConsentUrl = async (): Promise<{ url: string; verifier: string }> => {
+export const buildGoogleConsentUrl = async (): Promise<{ url: string }> => {
   const { verifier, challenge } = await createPkcePair();
+  const state = createGoogleOAuthState();
+  storeGoogleOAuthTransaction(state, verifier);
   const params = new URLSearchParams({
     client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
     redirect_uri: `${window.location.origin}/`,
@@ -77,14 +81,14 @@ export const buildGoogleConsentUrl = async (): Promise<{ url: string; verifier: 
     include_granted_scopes: 'true',
     code_challenge: challenge,
     code_challenge_method: 'S256',
-    state: verifier,                 // round-trip the verifier safely
+    state,
   });
-  return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`, verifier };
+  return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` };
 };
 
 /**
- * Complete the handshake: send the authorization code (and the verifier that
- * traveled as `state`) to the broker. Returns the first access token.
+ * Complete the handshake using the PKCE verifier from the matching browser
+ * session transaction. Returns the first access token.
  */
 export const exchangeCodeWithBroker = async (code: string, verifier: string): Promise<{ accessToken: string; expiresInSeconds: number }> => {
   const existing = inFlightExchanges.get(verifier);

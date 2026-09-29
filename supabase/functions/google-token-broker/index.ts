@@ -17,6 +17,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { isAllowedOrigin, parseAllowedOrigins } from "./cors.ts";
 import { requireGoogleClientCredentials } from "./credentials.ts";
+import { verifyBrokerSubscription } from "./entitlement.ts";
 import { decryptRefreshToken, encryptRefreshToken, isEncryptedRefreshToken } from "./tokenCrypto.ts";
 
 const ALLOWED_ORIGINS = parseAllowedOrigins(Deno.env.get("ALLOWED_ORIGINS"));
@@ -209,6 +210,19 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const entitlement = await verifyBrokerSubscription(
+      body.action,
+      userId,
+      await dbUrl(),
+      (await adminFromEnv()) ?? "",
+    );
+    if (entitlement === "inactive") {
+      return fail("An active subscription is required for Google Drive access", 403, { subscriptionRequired: true }, origin);
+    }
+    if (entitlement === "unavailable") {
+      return fail("Could not verify subscription; Google Drive access is temporarily unavailable", 503, {}, origin);
+    }
+
     switch (body.action) {
       // ---- Step 1 of the handshake: swap the auth code for tokens ----
       case "exchange": {
