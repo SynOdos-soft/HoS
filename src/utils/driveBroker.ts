@@ -21,6 +21,32 @@ interface CachedToken {
 
 let cached: CachedToken | null = null;
 
+/** Max time any broker call may spend resolving the auth session before failing fast. */
+const SESSION_DEADLINE_MS = 3000;
+
+/**
+ * Resolve the auth session with a hard deadline.
+ *
+ * Every broker call used to await `supabase.auth.getSession()` unbounded.
+ * Offline — or on a flaky captive portal — that call blocks on the auth token
+ * refresh (with backoff retries), so "is Drive connected?" and the health
+ * check could hang the Account tab's UI for tens of seconds with a
+ * margin-expired token. Failing fast keeps every broker path responsive; the
+ * session resolves normally whenever the network is available.
+ */
+const getSessionWithDeadline = async (): Promise<{ accessToken: string } | null> => {
+  try {
+    const result = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), SESSION_DEADLINE_MS)),
+    ]);
+    const token = result?.data.session?.access_token;
+    return token ? { accessToken: token } : null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Guards against double-consuming a single-use authorization code: React
  * StrictMode and duplicated handshake callers must not race the exchange.
@@ -50,13 +76,13 @@ export const createPkcePair = async (): Promise<{ verifier: string; challenge: s
 };
 
 const brokerCall = async (payload: Record<string, unknown>): Promise<Response> => {
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await getSessionWithDeadline();
   if (!session) throw new Error('Not signed in');
   return fetch(BROKER_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
+      Authorization: `Bearer ${session.accessToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -139,6 +165,9 @@ export const getGoogleAccessToken = async (forceRefresh = false): Promise<string
 
 /** Ask the broker whether Google Drive is connected for this user. */
 export const isDriveConnected = async (): Promise<boolean> => {
+  // Offline: the broker is unreachable, so "not provably connected" — but
+  // answer from the local fast-path flag instead of spending a doomed fetch.
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
   try {
     const res = await brokerCall({ action: 'status' });
     if (!res.ok) return false;

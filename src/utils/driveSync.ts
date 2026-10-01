@@ -60,6 +60,11 @@ export const schedulePush = () => {
 
 export const syncNow = async (): Promise<{ ok: boolean; error: string | null }> => {
   if (!started) return { ok: false, error: 'Sync is not running (connect Google Drive first).' };
+  // An offline round is skipped (see runSync) — report that honestly instead
+  // of letting the idle state read as "up to date".
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return { ok: false, error: 'Offline — reconnect to sync.' };
+  }
   await currentRound; // await the in-flight round (startCloudSync fires one)
   const { state: s, message: msg } = getSyncState();
   return s === 'error' ? { ok: false, error: msg || 'Sync failed.' } : { ok: true, error: null };
@@ -152,6 +157,14 @@ const runSync = async (): Promise<void> => {
   if (syncing) { pendingResync = true; return; }
   const provider = getActiveProvider();
   if (!provider) return; // local-only mode: nothing to do, stay idle
+  // Offline: skip the round entirely. The outbox is intact and the next
+  // trigger (online event, focus, visibility, 60 s timer) retries. A round
+  // against a dead network would spin "syncing" and surface a confusing
+  // error state for data that is safe locally.
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    setState('idle', 'Offline — sync will resume when you reconnect.');
+    return;
+  }
   syncing = true;
   const round = (async () => {
   setState('syncing');

@@ -66,6 +66,95 @@ const friendlyAuthError = (message: string): string => {
 const NOT_CONFIGURED_ERROR =
   'Sign-in is not configured in this deployment. Your logs are safe on this device — the app was built without the server connection settings.';
 
+/**
+ * Cached Supabase session shape. Only the fields needed to present a usable
+ * offline session are read; `expires_at` is a seconds-epoch per auth-js.
+ */
+interface CachedSession {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+  user?: User;
+}
+
+const AUTH_STORAGE_KEY = 'hos-supabase-auth';
+
+/**
+ * Restore a session from storage without touching the network.
+ *
+ * Why this exists: auth-js `getSession()` cannot resolve offline whenever the
+ * cached access token is inside its 90 s refresh margin — it awaits the
+ * token refresh (with exponential-backoff retries capped by a 30 s tick,
+ * plus a post-failure storage re-check) before returning. During an outage
+ * that keeps the app on the "restoring" gate for many seconds, and if a
+ * second caller serializes behind that refresh with its own long-failed
+ * fetches, boot can block indefinitely: the offline white screen.
+ *
+ * Reading the persisted blob directly gives an instant, dependency-free
+ * restore path. A refresh token is a long-lived bearer credential, so
+ * trusting it offline is exactly what the refresh flow itself does. This is
+ * a last-resort fallback: it is only consulted when offline (or when
+ * `getSession()` stalls), and the normal refresh runs as soon as the network
+ * returns, firing TOKEN_REFRESHED and extending the grace window.
+ */
+const readCachedSession = (): Session | null => {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    // No separate userStorage is configured, so auth-js persists the plain
+    // session object; accept a { currentSession } wrapper defensively.
+    const wrapper = parsed as { currentSession?: CachedSession | null };
+    const candidate = (wrapper.currentSession ?? parsed) as Partial<CachedSession> | null;
+    if (!candidate) return null;
+    const c = candidate as CachedSession;
+    if (!c.access_token || !c.refresh_token || typeof c.expires_at !== 'number') return null;
+    // NOTE: a hard-expired access token is still restored. Offline, the stored
+    // token is usually already expired (last refresh happened at last signal),
+    // and identity + local data do not depend on it: logs are read/written in
+    // IndexedDB and cloud writes queue in the outbox until reconnect. Access is
+    // bounded by the offline grace window (hos-last-auth → authFresh → Paywall),
+    // and on reconnect auth-js refreshes the token (TOKEN_REFRESHED extends the
+    // window) or signs the dead session out (SIGNED_OUT). Rejecting expired
+    // tokens here would put the driver back on the sign-in screen — the exact
+    // offline failure this fallback exists to prevent.
+    // Structural user check — the session must identify its user.
+    let user = c.user as User | undefined;
+    if (!user || typeof (user as { id?: unknown }).id !== 'string' || !(user as { id: string }).id) {
+      // Companion -user blob (only if userStorage were ever configured).
+      try {
+        const userRaw = localStorage.getItem(`${AUTH_STORAGE_KEY}-user`);
+        const parsedUser = userRaw ? (JSON.parse(userRaw) as { user?: User }).user : undefined;
+        if (parsedUser && typeof parsedUser.id === 'string') user = parsedUser;
+      } catch { /* ignore malformed companion blob */ }
+    }
+    if (!user || typeof user.id !== 'string' || !user.id) return null;
+    return {
+      access_token: c.access_token,
+      token_type: 'bearer',
+      refresh_token: c.refresh_token,
+      expires_in: Math.max(1, Math.floor((c.expires_at * 1000 - Date.now()) / 1000)),
+      expires_at: c.expires_at,
+      user,
+    } as unknown as Session;
+  } catch {
+    return null;
+  }
+};
+
+/** Resolve within `ms`, or return `fallback` (never rejects). */
+const withDeadline = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  new Promise<T>((resolve) => {
+    const timer = window.setTimeout(() => resolve(fallback), ms);
+    promise
+      .then((value) => { window.clearTimeout(timer); resolve(value); })
+      .catch(() => { window.clearTimeout(timer); resolve(fallback); });
+  });
+
+/** Max time the online boot path may spend in getSession() before falling back to the cached session. */
+const BOOT_DEADLINE_MS = 3000;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -96,29 +185,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     mounted.current = true;
 
-    // Restore the persisted session first so a returning driver (especially
-    // offline) lands straight in the app instead of at the sign-in screen.
-    supabase.auth.getSession()
-      .then(async ({ data }) => {
+    /**
+     * Resolve the boot session with an offline guarantee:
+     *  - Offline: restore the cached session directly. Never await the
+     *    network — a margin-expired token makes getSession() block on a
+     *    dead refresh, which is the offline white screen.
+     *  - Online: bound getSession() by a deadline; if it stalls (flaky
+     *    captive-portal network), fall back to the cached session.
+     */
+    const restoreSession = async () => {
+      const offline = !navigator.onLine;
+      if (offline) {
+        const cached = readCachedSession();
         if (!mounted.current) return;
-        setSession(data.session ?? null);
-        const userId = data.session?.user?.id;
+        setSession(cached);
+        const userId = cached?.user?.id;
         if (userId && !localStorage.getItem(lastAuthKey(userId))) {
+          // First restore on this device: seed the grace window so an
+          // offline boot is never mistaken for a lapsed one.
           markSessionValidated(userId);
         }
-      })
-      .catch(() => {
-        // Corrupt/expired stored session: treat as signed out, keep local data.
-        if (!mounted.current) return;
-        setSession(null);
-      })
-      .finally(() => {
-        if (mounted.current) setLoading(false);
-      });
+        setLoading(false);
+        return;
+      }
+
+      const restored = await withDeadline(
+        supabase.auth.getSession().then(({ data }) => data.session ?? null),
+        BOOT_DEADLINE_MS,
+        null,
+      );
+      if (!mounted.current) return;
+      const session = restored ?? readCachedSession();
+      setSession(session);
+      const userId = session?.user?.id;
+      if (userId && !localStorage.getItem(lastAuthKey(userId))) {
+        markSessionValidated(userId);
+      }
+      setLoading(false);
+    };
+
+    void restoreSession();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted.current) return;
-      setSession(nextSession ?? null);
+      setSession(prev => {
+        // initialize() flushes a buffered INITIAL_SESSION after its (possibly
+        // long) startup settles. If that event carries no session while we
+        // already restored one (offline boot), don't clobber the restore —
+        // the driver would flash to the sign-in screen. Real sign-outs
+        // (SIGNED_OUT) always clear.
+        if (event === 'INITIAL_SESSION' && !nextSession && prev) return prev;
+        return nextSession ?? null;
+      });
       // Only server-proven events extend the window: SIGNED_IN (fresh auth,
       // incl. OAuth return) and TOKEN_REFRESHED (network refresh succeeded).
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && nextSession?.user) {
@@ -164,6 +282,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // session as stale and surface the deployment problem honestly.
     if (!supabaseConfigured) {
       return { ok: false, error: NOT_CONFIGURED_ERROR };
+    }
+    // Offline: fail fast. refreshSession() would block on dead-network token
+    // refresh retries (tens of seconds of a spinning "Checking with server…"
+    // button) before surfacing the same message.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return { ok: false, error: 'No connection. Reconnect to the internet and try again.' };
     }
     // Forces a network round-trip to Supabase Auth; requires internet.
     const { data, error } = await supabase.auth.refreshSession();

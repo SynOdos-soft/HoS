@@ -19,6 +19,19 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-10-01',
+    fixes: [
+      'Fixed the app showing a blank white screen when opened without internet — it now opens straight into your saved log book, instantly, every time.',
+      'Boot no longer waits on the network at all: your last-signed-in session is restored from this device, and even a long-expired access token no longer blocks the log book.',
+      'If connectivity returns mid-session, freshly published app updates now install themselves automatically — no reopening the app, no "Update now" tap needed (anything unsaved on screen always waits).',
+      'The Account screen no longer hangs on "Checking…" or falsely reports Drive as disconnected while offline — it now says "Offline" and re-verifies on reconnect.',
+      'Backup & sync skips its background rounds while offline instead of spinning and reporting errors; it resumes silently on the next trigger after reconnecting.',
+      '"Sync now", "Renew session now" and the reconnect buttons respond instantly with a clear offline message instead of spinning against a dead network.',
+      'A crashed screen now shows a recovery page with "Try again" and "Reload app" instead of a white screen — your log book is never touched.'
+    ]
+  },
+  {
+    version: '0.30.2',
     date: '2026-09-29',
     security: [
       'Google Drive connection now binds OAuth state to this browser tab and keeps the PKCE verifier out of the redirect URL.',

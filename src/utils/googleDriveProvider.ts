@@ -26,7 +26,11 @@ const provider: CloudProvider = {
 
   async isConnected() {
     if (localStorage.getItem(CONNECTED_FLAG) !== 'true') return false;
-    // Server is authoritative; localStorage is just a fast path.
+    // Offline: the broker is unreachable, so server verification is
+    // impossible — trust the local flag rather than reporting "not
+    // connected" (which would invite a pointless reconnect prompt).
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+    // Online: server is authoritative; localStorage is just a fast path.
     try {
       return await isDriveConnected();
     } catch {

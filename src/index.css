@@ -1581,6 +1581,16 @@ html.light-mode .hour-block.hour-highlight {
   animation: spin 0.8s linear infinite;
 }
 
+/* Boot gate spinner (auth restore) — neutral accent, sized for the gate. */
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(148, 163, 184, 0.25);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

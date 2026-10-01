@@ -50,6 +50,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   const provider: CloudProvider | null = getActiveProvider();
 
   const refreshHealth = async () => {
+    // Offline: the Drive API is unreachable; a doomed fetch would report a
+    // fake "not connected" state. Leave any cached health data on screen.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     setHealthBusy(true);
     try {
       const h = await getDriveHealth();
@@ -134,8 +137,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   const [pendingSyncAction, setPendingSyncAction] = useState<'backup' | 'restore' | null>(null);
 
   // Refresh the Drive health card whenever the Account tab is shown.
+  // Offline the refresh is a no-op (see refreshHealth), so skip the await.
   React.useEffect(() => {
-    if (activeTab === 'account' && provider) void refreshHealth();
+    if (activeTab === 'account' && provider && navigator.onLine) void refreshHealth();
   }, [activeTab, provider]);
 
   // Server-verified connection state. "On" must mean the token broker
@@ -150,11 +154,18 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       setVerifiedConnected(false);
       return;
     }
+    if (!navigator.onLine) {
+      // Offline: cannot verify with the server. Trust the local connection
+      // flag so the card shows "Offline" (not a false "Not connected"),
+      // and re-verify the moment connectivity returns.
+      setVerifiedConnected(localStorage.getItem('hos-drive-connected') === 'true');
+      return;
+    }
     provider.isConnected()
       .then((ok: boolean) => { if (!cancelled) setVerifiedConnected(ok); })
       .catch(() => { if (!cancelled) setVerifiedConnected(false); });
     return () => { cancelled = true; };
-  }, [provider, activeTab]);
+  }, [provider, activeTab, online]);
 
   // Show an OAuth-return failure (consent declined, exchange error, …) once.
   const [handshakeError, setHandshakeError] = useState<string | null>(null);

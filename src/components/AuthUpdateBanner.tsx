@@ -9,13 +9,47 @@ import { APP_VERSION } from '../types';
  * The in-app banner only ever rendered inside the signed-in app, so a client
  * stranded on a stale bundle while signed out could never reach the update
  * action — a deadlock this component breaks. "prompt" registration means the
- * new service worker waits until the user accepts.
+ * new service worker waits until the user accepts; when connectivity returns
+ * the banner re-checks for updates and auto-applies a waiting worker (nothing
+ * can be unsaved on these screens), with the button as the manual fallback.
  */
 export const AuthUpdateBanner: React.FC = () => {
-  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+  const swRegistrationRef = React.useRef<ServiceWorkerRegistration | null>(null);
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(_url, registration) {
+      swRegistrationRef.current = registration ?? null;
+    },
+  });
   const [newVersion, setNewVersion] = React.useState<string | null>(null);
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(false);
+  const [online, setOnline] = React.useState(() => navigator.onLine);
+
+  // Signed-out screens have no connectivity indicator of their own, so listen
+  // directly. When the device regains signal: re-check for a new build (covers
+  // "reconnected first, new build published later"), and let the auto-apply
+  // effect below cover the reverse order (build waiting while offline). Since
+  // nothing can be unsaved on a sign-in/paywall screen, auto-applying is safe;
+  // the banner stays as the manual fallback if dismissed or the reload stalls.
+  React.useEffect(() => {
+    const goOnline = () => {
+      setOnline(true);
+      if (!dismissed) swRegistrationRef.current?.update().catch(() => {});
+    };
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, [dismissed]);
+
+  React.useEffect(() => {
+    if (!needRefresh || !online || dismissed || isUpdating) return;
+    setIsUpdating(true);
+    updateServiceWorker(true);
+  }, [needRefresh, online, dismissed, isUpdating, updateServiceWorker]);
 
   React.useEffect(() => {
     if (!needRefresh) return;
@@ -23,7 +57,7 @@ export const AuthUpdateBanner: React.FC = () => {
     fetch('version.json', { cache: 'no-store' })
       .then(res => (res.ok ? res.json() : null))
       .then(data => { if (!cancelled && data?.version) setNewVersion(String(data.version)); })
-      .catch(() => {});
+      .catch(() => {}); // banner still works without a version label
     return () => { cancelled = true; };
   }, [needRefresh]);
 

@@ -21,8 +21,11 @@ export default defineConfig({
     emitVersionFile(),
     react(),
     VitePWA({
-      // 'prompt' keeps the old service worker active until the driver accepts
-      // the "Update to vX.Y.Z" banner, so an open log is never hot-swapped mid-week.
+      // 'prompt' keeps the old service worker active until the update is
+      // accepted: either the driver taps the "Update to vX.Y.Z" banner, or —
+      // when connectivity returns and nothing unsaved is on screen — App.tsx
+      // auto-applies it, so fixed builds arrive without reopening the app.
+      // An open log is never hot-swapped mid-entry.
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {

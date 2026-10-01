@@ -1,7 +1,7 @@
 {
   "name": "hos",
   "private": true,
-  "version": "0.30.2",
+  "version": "0.30.5",
   "type": "module",
   "scripts": {
     "dev": "vite",

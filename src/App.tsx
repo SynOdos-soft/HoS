@@ -223,6 +223,24 @@ export default function App() {
     updateServiceWorker(true); // reloads the page once the waiting worker takes over
   };
 
+  // Auto-apply a downloaded service worker when the device is back online:
+  // a driver regaining signal gets the fixed build without reopening the app
+  // or tapping "Update now". The reload is deferred whenever anything unsaved
+  // is on screen (pending compliance reason, mid-save, or edits not yet
+  // persisted) — the banner then stays as the explicit path, keeping the
+  // "never hot-swap mid-entry" rule. An explicit dismissal always wins.
+  useEffect(() => {
+    if (!needRefresh || !isOnline || swDismmissed) return;
+    if (isSaving || isReasonModalOpen) return;
+    const pending = !!lastSavedLog && (
+      JSON.stringify(days) !== JSON.stringify(lastSavedLog.days) ||
+      JSON.stringify(metadata) !== JSON.stringify(lastSavedLog.metadata)
+    );
+    if (pending) return;
+    setIsUpdating(true);
+    updateServiceWorker(true);
+  }, [needRefresh, isOnline, swDismmissed, isSaving, isReasonModalOpen, days, metadata, lastSavedLog, updateServiceWorker]);
+
   const handleCheckForUpdates = () => {
     if (!swRegistrationRef.current || updateCheckStatus === 'checking') return;
     setUpdateCheckStatus('checking');
@@ -1294,12 +1312,28 @@ export default function App() {
   };
 
   // --- Auth gate ---------------------------------------------------------
-  // While the persisted session is restoring, show nothing (avoids flashing
-  // the sign-in screen for an already signed-in driver). Once resolved:
-  // signed-out renders the SignIn screen; signed-in renders the full app.
+  // While the persisted session is being restored, show a minimal loading
+  // screen rather than nothing: an empty container is indistinguishable from
+  // a crashed bundle (the offline white screen). The restore path itself is
+  // offline-safe (see lib/auth), so this state is brief; if the device is
+  // offline during boot we say so instead of leaving a silent void.
   if (authLoading || session === undefined) {
     return (
-      <div className="app-container" style={{ minHeight: '100dvh' }} />
+      <div
+        className="app-container"
+        role="status"
+        aria-live="polite"
+        style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem' }}>
+          <div className="loading-spinner" aria-hidden="true" />
+          {!navigator.onLine && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              Offline — opening your saved log book…
+            </span>
+          )}
+        </div>
+      </div>
     );
   }
   if (!session) {

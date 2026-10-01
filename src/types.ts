@@ -158,4 +158,4 @@ export const DEFAULT_PREFS: Preferences = {
   }
 };
 
-export const APP_VERSION = '0.30.2';
+export const APP_VERSION = '0.30.5';
