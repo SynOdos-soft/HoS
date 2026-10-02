@@ -5,7 +5,11 @@ import { MetadataForm } from './components/MetadataForm';
 import { Header } from './components/Header';
 import { PreferencesMenu } from './components/PreferencesMenu';
 import { WeeklyLog, WeeklyMetadata, Status, DayEntry, DayVehicle, Preferences, DEFAULT_PREFS, AuditEntry, APP_VERSION } from './types';
-import { saveLog, getLog, getAllLogs, deleteLog } from './utils/storage';
+import { saveLog, getLog, getAllLogs, deleteLog, setActiveAccount, getActiveAccount } from './utils/storage';
+import {
+  ensureAccountScope, readPrefs, writePrefs, writePrefsSavedAt,
+  readPrefsSavedAt, takeIncomingPrefs, getScopedItem, setScopedItem,
+} from './utils/accountScope';
 import { generatePDF } from './utils/pdf';
 import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase, X, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
@@ -42,16 +46,19 @@ const DEFAULT_METADATA: WeeklyMetadata = {
 };
 
 const LAST_USED_VEHICLE_KEY = 'hos-last-used-vehicle-plate';
+const METADATA_PRESET_KEY = 'hos-metadata-preset';
 
 /** Periodic service worker update check while the app stays open. */
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
+// Both of these hold driver-specific facts (plate, operator name/address), so
+// they are stored per account: a second driver on the same device starts blank.
 const getLastUsedVehiclePlate = (fallback = '') =>
-  localStorage.getItem(LAST_USED_VEHICLE_KEY) || fallback;
+  getScopedItem(LAST_USED_VEHICLE_KEY, getActiveAccount()) || fallback;
 
 const rememberVehiclePlate = (plate: string) => {
   const normalizedPlate = plate.trim();
-  if (normalizedPlate) localStorage.setItem(LAST_USED_VEHICLE_KEY, normalizedPlate);
+  if (normalizedPlate) setScopedItem(LAST_USED_VEHICLE_KEY, getActiveAccount(), normalizedPlate);
 };
 
 const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMetadata: WeeklyMetadata): DayEntry[] => {
@@ -120,56 +127,72 @@ export default function App() {
     return () => { cancelled = true; };
   }, [session?.user?.id]);
 
+  // --- Account scope ------------------------------------------------------
+  // Logs and preferences belong to an account, not to a device. When the signed
+  // -in user changes (first sign-in, or a different driver on the same phone)
+  // we claim any pre-namespacing data for the account that actually owned this
+  // device, then load THIS account's preferences and reload its logs.
+  const accountId = session?.user?.id ?? null;
+  useEffect(() => {
+    if (!accountId) {
+      setActiveAccount(null);
+      return;
+    }
+    let cancelled = false;
+    void ensureAccountScope(accountId).then(() => {
+      if (cancelled) return;
+      setPreferences(readPrefs(accountId));
+      setPrefsAccount(accountId);
+      // Force the boot loader to re-run for the new account's own data.
+      setAutoLoaded(false);
+      setSavedLogs([]);
+      setLastSavedLog(null);
+      setCurrentId('');
+      setDays([]);
+      setAuditLog([]);
+    });
+    return () => { cancelled = true; };
+  }, [accountId]);
+
   // --- Incoming remote preferences ---------------------------------------
-  // pullRemote() writes a pulled preferences blob to localStorage under
-  // 'hos-preferences-incoming' and fires 'hos-prefs-incoming'. We adopt it
-  // only if it is newer than our last local save, so a stale remote blob can
-  // never clobber fresher local edits.
+  // pullRemote() stages a pulled preferences blob for the account it synced and
+  // fires 'hos-prefs-incoming'. We adopt it only if it is newer than our last
+  // local save for THAT account, so a stale remote blob can never clobber
+  // fresher local edits — and another account's pull is ignored outright.
   useEffect(() => {
     const adopt = () => {
       try {
-        const raw = localStorage.getItem('hos-preferences-incoming');
-        if (!raw) return;
-        localStorage.removeItem('hos-preferences-incoming');
-        const incoming = JSON.parse(raw);
-        const localSavedAt = localStorage.getItem('hos-preferences-saved-at') || '';
-        if (incoming.savedAt && incoming.savedAt <= localSavedAt) return;
-        const { savedAt, ...prefs } = incoming;
+        if (!accountId) return;
+        const incoming = takeIncomingPrefs(accountId);
+        if (!incoming) return;
+        const localSavedAt = readPrefsSavedAt(accountId);
+        const savedAt = typeof incoming.savedAt === 'string' ? incoming.savedAt : '';
+        if (savedAt && savedAt <= localSavedAt) return;
+        const prefs: Record<string, unknown> = { ...incoming };
+        delete prefs.savedAt;
         setPreferences(prev => ({
           ...DEFAULT_PREFS,
           ...prev,
           ...prefs,
           userProfile: { ...DEFAULT_PREFS.userProfile, ...(prev.userProfile || {}), ...(prefs.userProfile || {}) },
         }));
-        localStorage.setItem('hos-preferences-saved-at', savedAt || new Date().toISOString());
+        writePrefsSavedAt(accountId, savedAt || new Date().toISOString());
       } catch (e) {
         console.error('[sync] failed to adopt incoming preferences', e);
       }
     };
     window.addEventListener('hos-prefs-incoming', adopt);
     return () => window.removeEventListener('hos-prefs-incoming', adopt);
-  }, []);
+  }, [accountId]);
 
   const [view, setView] = useState<'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences'>('dashboard');
   const [savedLogs, setSavedLogs] = useState<WeeklyLog[]>([]);
 
-  const [preferences, setPreferences] = useState<Preferences>(() => {
-    const saved = localStorage.getItem('hos-preferences');
-    if (!saved) return DEFAULT_PREFS;
-    try {
-      const parsed = JSON.parse(saved);
-      return {
-        ...DEFAULT_PREFS,
-        ...parsed,
-        userProfile: {
-          ...DEFAULT_PREFS.userProfile,
-          ...(parsed.userProfile || {})
-        }
-      };
-    } catch {
-      return DEFAULT_PREFS;
-    }
-  });
+  const [preferences, setPreferences] = useState<Preferences>(() => readPrefs(null));
+  // Preferences are stored per account. Until the session resolves we hold the
+  // device-wide blob; `prefsAccount` records which account's preferences the
+  // current state actually belongs to, so a save never lands in the wrong one.
+  const [prefsAccount, setPrefsAccount] = useState<string | null>(null);
 
   const [currentId, setCurrentId] = useState<string>('');
   const [metadata, setMetadata] = useState<WeeklyMetadata>(DEFAULT_METADATA);
@@ -320,12 +343,17 @@ export default function App() {
       document.body.classList.remove('light-mode');
       document.documentElement.classList.remove('light-mode');
     }
-    localStorage.setItem('hos-preferences', JSON.stringify(preferences));
-    localStorage.setItem('hos-preferences-saved-at', new Date().toISOString());
+    // Persist under the account that owns these preferences. `prefsAccount`
+    // guards against writing the previous account's blob over the new one in
+    // the window before the account's own preferences have been loaded.
+    if (accountId && prefsAccount === accountId) {
+      writePrefs(accountId, preferences);
+      writePrefsSavedAt(accountId, new Date().toISOString());
+    }
     setCloudSyncPreferences(preferences);
-  }, [preferences]);
+  }, [preferences, accountId, prefsAccount]);
 
-  useEffect(() => { if (view === 'dashboard' || view === 'audit') loadDashboard(); }, [view]);
+  useEffect(() => { if (view === 'dashboard' || view === 'audit') loadDashboard(); }, [view, prefsAccount]);
 
   // Boot: local data always loads. The optional cloud engine only runs when
   // a provider is connected — never a gate, purely additive.
@@ -492,12 +520,12 @@ export default function App() {
       cmvPlate: currentDayMeta.cmvPlate,
       cycle: currentDayMeta.cycle,
     };
-    localStorage.setItem('hos-metadata-preset', JSON.stringify(preset));
+    setScopedItem(METADATA_PRESET_KEY, getActiveAccount(), JSON.stringify(preset));
     alert('Preset saved!');
   };
 
   const handleApplyPreset = () => {
-    const raw = localStorage.getItem('hos-metadata-preset');
+    const raw = getScopedItem(METADATA_PRESET_KEY, getActiveAccount());
     if (!raw) { alert('No preset saved yet.'); return; }
     const preset = JSON.parse(raw);
     // Apply preset to the selected day's metadata

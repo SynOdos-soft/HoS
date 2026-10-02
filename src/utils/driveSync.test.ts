@@ -6,7 +6,7 @@ import {
   mergeLogIntoLocal, migrateFromSupabaseOnce,
   startCloudSync, stopCloudSync, syncNow, onSyncStateChange, getSyncState,
 } from './driveSync';
-import { getLog, saveLog, outboxGetAll, metaSet } from './storage';
+import { getLog, saveLog, outboxGetAll, metaSet, setActiveAccount } from './storage';
 import { registerProvider, setActiveProviderId, type CloudProvider } from './cloudProviders';
 
 // ---- Mocks ----------------------------------------------------------------
@@ -37,7 +37,9 @@ vi.mock('./supabaseClient', () => {
   };
 });
 
-// markSessionValidated writes localStorage; fine as-is (real impl).
+// ---- Mocks ----------------------------------------------------------------
+/** The user id the mocked Supabase session reports. */
+const SESSION_USER = 'user-1';
 vi.mock('../lib/auth', () => ({ markSessionValidated: vi.fn() }));
 
 // NOTE: real timers — fake-indexeddb transactions hang under fake timers.
@@ -66,6 +68,8 @@ const provider: CloudProvider = {
 
 beforeEach(async () => {
   await clearAllStores();
+  // Local rows are scoped per account; the mocked session is 'user-1'.
+  setActiveAccount(SESSION_USER);
   stored.clear();
   providerSnapshot = { weeks: {}, deleted: {} };
   providerPrefs = null;
@@ -256,18 +260,19 @@ describe('runSync rounds', () => {
       data: makePrefs({ defaultDriverName: 'Remote-Wins' }),
       updatedAt: '2026-09-25T13:00:00Z', // future vs local stamp (empty)
     };
-    localStorage.setItem('hos-preferences-saved-at', '2026-09-25T00:00:00Z');
+    localStorage.setItem(`hos-preferences-saved-at:${SESSION_USER}`, '2026-09-25T00:00:00Z');
     startCloudSync(makePrefs());
     await syncNow();
-    const incoming = localStorage.getItem('hos-preferences-incoming');
+    const incomingKey = `hos-preferences-incoming:${SESSION_USER}`;
+    const incoming = localStorage.getItem(incomingKey);
     expect(incoming).not.toBeNull();
     expect(JSON.parse(incoming!).defaultDriverName).toBe('Remote-Wins');
     stopCloudSync();
-    localStorage.removeItem('hos-preferences-incoming');
+    localStorage.removeItem(incomingKey);
 
     // Case 2: local newer than remote -> local blob uploaded.
     providerPrefs = { data: makePrefs({ defaultDriverName: 'Old-Remote' }), updatedAt: '2026-09-24T00:00:00Z' };
-    localStorage.setItem('hos-preferences-saved-at', '2026-09-25T12:00:00Z');
+    localStorage.setItem(`hos-preferences-saved-at:${SESSION_USER}`, '2026-09-25T12:00:00Z');
     startCloudSync(makePrefs({ defaultDriverName: 'Fresh-Local' }));
     await syncNow();
     expect((providerPrefs!.data as { defaultDriverName: string }).defaultDriverName).toBe('Fresh-Local');

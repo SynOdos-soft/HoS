@@ -23,6 +23,12 @@ export interface OutboxEntry {
   kind: 'log-updated' | 'log-deleted';
   logId: string;
   ts: string;
+  /**
+   * Account the queued work belongs to. Without this, an edit made by one
+   * driver but not yet flushed would be uploaded into whichever account signs
+   * in next.
+   */
+  ownerId?: string;
 }
 
 export type LogMutation =
@@ -50,6 +56,30 @@ const notifyMutations = (mutation: LogMutation) => {
 let dbPromise: Promise<IDBPDatabase<HoSDB>> | null = null;
 
 const DB_VERSION = 4;
+
+/** localStorage key naming the account this device currently holds data for. */
+const ACTIVE_ACCOUNT_KEY = 'hos-active-account';
+
+let activeAccount: string | null = null;
+
+/**
+ * Account whose rows are in scope. Every read and write of a log is filtered by
+ * it, so two accounts sharing one phone never see each other's history.
+ * The signed-in session is the only thing allowed to set this.
+ */
+export const getActiveAccount = (): string | null => activeAccount;
+
+export const setActiveAccount = (userId: string | null): void => {
+  activeAccount = userId || null;
+  if (!userId) return;
+  try {
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, userId);
+  } catch { /* private mode: the in-memory scope still works */ }
+};
+
+/** Whether a stored row may be touched by the account currently in scope. */
+export const isOwnedByActiveAccount = (ownerId?: string): boolean =>
+  !!activeAccount && ownerId === activeAccount;
 
 export const initDB = () => {
   if (!dbPromise) {
@@ -123,11 +153,15 @@ const executeWithRetry = async <T>(operation: (db: IDBPDatabase<HoSDB>) => Promi
 };
 
 export const saveLog = async (log: WeeklyLog) => {
-  const record: WeeklyLog = { ...log, updatedAt: new Date().toISOString() };
+  const record: WeeklyLog = {
+    ...log,
+    updatedAt: new Date().toISOString(),
+    ownerId: activeAccount || undefined,
+  };
   await executeWithRetry(async (db) => {
     await db.put('logs', record);
     const tx = db.transaction('outbox', 'readwrite');
-    await tx.store.put({ kind: 'log-updated', logId: record.id, ts: record.updatedAt as string });
+    await tx.store.put({ kind: 'log-updated', logId: record.id, ts: record.updatedAt as string, ownerId: activeAccount ?? undefined });
     await tx.done;
   });
   notifyMutations({ type: 'log-updated', logId: record.id });
@@ -136,10 +170,11 @@ export const saveLog = async (log: WeeklyLog) => {
 /**
  * Write logs coming FROM the cloud without re-enqueuing them (a pull must not
  * schedule a push of the data it just received). Used only by the sync engine.
+ * Stamped with the active account: a pulled row belongs to whoever signed in.
  */
 export const putLogRaw = async (log: WeeklyLog) => {
   await executeWithRetry(async (db) => {
-    await db.put('logs', log);
+    await db.put('logs', { ...log, ownerId: activeAccount || log.ownerId });
   });
 };
 
@@ -148,30 +183,41 @@ export const putLogRaw = async (log: WeeklyLog) => {
  * Drastically reduces CPU overhead and avoids sequential transaction connection closures.
  */
 export const saveLogsBulk = async (logs: WeeklyLog[]) => {
+  const owned = logs.map(log => ({ ...log, ownerId: activeAccount || log.ownerId }));
   await executeWithRetry(async (db) => {
     const tx = db.transaction('logs', 'readwrite');
-    const operations = logs.map(log => tx.store.put(log));
+    const operations = owned.map(log => tx.store.put(log));
     await Promise.all([...operations, tx.done]);
   });
 };
 
 export const getLog = async (id: string): Promise<WeeklyLog | undefined> => {
-  return await executeWithRetry(async (db) => {
+  const log = await executeWithRetry(async (db) => {
     return await db.get('logs', id);
   });
+  // A week belonging to another account must look like it does not exist.
+  return log && isOwnedByActiveAccount(log.ownerId) ? log : undefined;
 };
 
-export const getAllLogs = async (): Promise<WeeklyLog[]> => {
+/** Every row, owner ignored. Migration and maintenance only. */
+export const getAllLogsRaw = async (): Promise<WeeklyLog[]> => {
   return await executeWithRetry(async (db) => {
     return await db.getAll('logs');
   });
 };
 
+export const getAllLogs = async (): Promise<WeeklyLog[]> => {
+  const logs = await getAllLogsRaw();
+  return logs.filter(log => isOwnedByActiveAccount(log.ownerId));
+};
+
 export const deleteLog = async (id: string) => {
+  const existing = await executeWithRetry(async (db) => db.get('logs', id));
+  if (!existing || !isOwnedByActiveAccount(existing.ownerId)) return;
   await executeWithRetry(async (db) => {
     await db.delete('logs', id);
     const tx = db.transaction('outbox', 'readwrite');
-    await tx.store.put({ kind: 'log-deleted', logId: id, ts: new Date().toISOString() });
+    await tx.store.put({ kind: 'log-deleted', logId: id, ts: new Date().toISOString(), ownerId: activeAccount ?? undefined });
     await tx.done;
   });
   notifyMutations({ type: 'log-deleted', logId: id });
@@ -181,19 +227,46 @@ export const deleteLog = async (id: string) => {
 
 export const outboxAdd = async (entry: Omit<OutboxEntry, 'seq'>) => {
   await executeWithRetry(async (db) => {
-    await db.put('outbox', entry);
+    await db.put('outbox', { ownerId: activeAccount ?? undefined, ...entry });
   });
 };
 
-export const outboxGetAll = async (): Promise<OutboxEntry[]> => {
+/** Every queue entry, owner ignored. Migration only. */
+export const outboxGetAllRaw = async (): Promise<OutboxEntry[]> => {
   return await executeWithRetry(async (db) => {
     return await db.getAll('outbox');
   });
 };
 
-export const outboxClear = async () => {
+/** Queue entries belonging to the account in scope. */
+export const outboxGetAll = async (): Promise<OutboxEntry[]> => {
+  const entries = await outboxGetAllRaw();
+  return entries.filter(e => isOwnedByActiveAccount(e.ownerId));
+};
+
+/** Stamp queue entries that predate account scoping (migration only). */
+export const outboxClaimFor = async (ownerId: string): Promise<number> => {
+  const unowned = (await outboxGetAllRaw()).filter(e => !e.ownerId);
+  for (const entry of unowned) {
+    await executeWithRetry(async (db) => { await db.put('outbox', { ...entry, ownerId }); });
+  }
+  return unowned.length;
+};
+
+/**
+ * Drop flushed entries. With no argument the whole queue is cleared; with
+ * entries, only those — so a flush by one account never discards another
+ * account's still-pending work.
+ */
+export const outboxClear = async (flushed?: OutboxEntry[]) => {
   await executeWithRetry(async (db) => {
-    await db.clear('outbox');
+    if (!flushed) {
+      await db.clear('outbox');
+      return;
+    }
+    const tx = db.transaction('outbox', 'readwrite');
+    await Promise.all(flushed.map(e => tx.store.delete(e.seq as number)));
+    await tx.done;
   });
 };
 

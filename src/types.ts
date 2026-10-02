@@ -57,6 +57,12 @@ export interface WeeklyLog {
   updatedAt?: string;
   /** Tombstone set when the week was deleted locally; synced as deleted rows. */
   deleted?: boolean;
+  /**
+   * Supabase user id this row belongs to. Local-only: it is never sent to the
+   * server (the row's own user_id column carries that). Rows written before
+   * v0.31.1 have none until accountScope claims them for their real owner.
+   */
+  ownerId?: string;
 }
 
 export type PaintMode = Status | 'cycle';
@@ -158,4 +164,4 @@ export const DEFAULT_PREFS: Preferences = {
   }
 };
 
-export const APP_VERSION = '0.31.0';
+export const APP_VERSION = '0.32.0';

@@ -3,8 +3,9 @@ import { markSessionValidated } from '../lib/auth';
 import { WeeklyLog, Preferences } from '../types';
 import {
   getAllLogs, getLog, putLogRaw, outboxGetAll, outboxClear,
-  onLogMutation, type LogMutation,
+  onLogMutation, setActiveAccount, type LogMutation,
 } from './storage';
+import { ensureAccountScope, putIncomingPrefs, readPrefsSavedAt, writePrefsSavedAt } from './accountScope';
 
 /**
  * Cloud sync engine — the "no data loss" core.
@@ -181,7 +182,7 @@ const mergeLogIntoLocal = async (remote: WeeklyLog, remoteUpdatedAt: string) => 
   return changed;
 };
 
-/** First sign-in: upload every local log so existing device history joins the account. */
+/** First sign-in: upload this account's local logs so device history joins it. */
 const seedAccountFromLocal = async (userId: string): Promise<boolean> => {
   const { count, error } = await supabase
     .from('weekly_logs')
@@ -213,6 +214,7 @@ const pushOutbox = async (userId: string): Promise<void> => {
     if (!prev || e.ts >= prev.ts) latest.set(e.logId, e);
   }
 
+  const flushed: typeof entries = [];
   for (const entry of latest.values()) {
     if (entry.kind === 'log-deleted') {
       // Tombstone: never hard-delete; other devices learn via deleted=true.
@@ -236,10 +238,12 @@ const pushOutbox = async (userId: string): Promise<void> => {
         .upsert(rowFromLog(log, userId), { onConflict: 'user_id,id' });
       if (error) throw error;
     }
+    flushed.push(entry);
   }
 
-  // Clear only after every entry in this batch uploaded successfully.
-  await outboxClear();
+  // Clear only after every entry in this batch uploaded successfully, and only
+  // these entries: another account's pending work stays queued.
+  await outboxClear(flushed);
 };
 
 const pullRemote = async (userId: string): Promise<void> => {
@@ -285,10 +289,10 @@ const pullRemote = async (userId: string): Promise<void> => {
     .maybeSingle();
   if (prefErr) throw prefErr;
   if (prefRow?.updated_at && prefRow.updated_at > getPrefsAt(userId)) {
-    const localSavedAt = localStorage.getItem('hos-preferences-saved-at') || '';
+    const localSavedAt = readPrefsSavedAt(userId);
     if (prefRow.updated_at > localSavedAt) {
       const incoming = prefRow.data as Partial<Preferences>;
-      localStorage.setItem('hos-preferences-incoming', JSON.stringify(incoming));
+      putIncomingPrefs(userId, incoming);
       setPrefsAt(userId, prefRow.updated_at);
       window.dispatchEvent(new CustomEvent('hos-prefs-incoming'));
     } else {
@@ -307,7 +311,7 @@ const pushPreferences = async (userId: string, preferences: Preferences) => {
   if (error) throw error;
   const now = new Date().toISOString();
   setPrefsAt(userId, now);
-  localStorage.setItem('hos-preferences-saved-at', now);
+  writePrefsSavedAt(userId, now);
 };
 
 let lastPreferencesRef: Preferences | null = null;
@@ -332,6 +336,12 @@ export const runSync = async (preferences?: Preferences): Promise<void> => {
   const { data: { session } } = await supabase.auth.getSession();
   const user = session?.user;
   if (!user) return; // signed out — nothing to do
+
+  // Local data is scoped per account: claim any legacy rows for their real
+  // owner, then put THIS account in scope. Everything below (seed, push, pull)
+  // therefore only ever touches the signed-in driver's own data.
+  await ensureAccountScope(user.id);
+  setActiveAccount(user.id);
 
   syncing = true;
   setState('syncing');

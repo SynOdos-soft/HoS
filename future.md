@@ -5,7 +5,12 @@ what exists today: weekly log grid, roadside inspection view, audit trail with r
 codes, auto-locking, PDF exports, encrypted Google Drive sync, saved vehicles and
 operator companies, presets.
 
-_Last updated: 2026-10-02 (v0.31.0)_
+_Last updated: 2026-10-02 (v0.32.0)_
+
+> ✅ Done in **v0.32.0**: **Per-account data ownership** — local weeks, preferences, vehicles,
+> driver details and the pending-sync queue are scoped to the signed-in account, so a second
+> driver on the same device no longer sees (or uploads into their account) the first driver's
+> data. Pre-namespacing data is claimed once by the account the device actually used.
 
 > ✅ Done in **v0.31.0**: **Simplified inspection handoff** — the Inspection screen now
 > offers a roadside PDF plus an on-screen QR code that opens the 15-day report read-only on

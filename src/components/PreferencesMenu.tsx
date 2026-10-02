@@ -16,9 +16,22 @@ interface PreferencesMenuProps {
   updateCheckStatus?: 'idle' | 'checking' | 'up-to-date';
 }
 
-const VERSIONS = [
-  {
+const VERSIONS = [{
     version: APP_VERSION,
+    date: '2026-10-02',
+    features: [
+      'Your log book now belongs to your account instead of to the phone. Signing in with a different account on a shared device no longer shows the previous driver\'s weeks — each account sees only its own record.',
+      'Everything personal is kept per account too: your vehicles, operator companies, driver profile and licence details, the last plate you used and your saved metadata presets. A second driver on the same tablet starts clean rather than inheriting them.',
+      'Edits that are still waiting to upload are now tied to the account that made them, so one driver\'s pending changes can never be pushed into another account.',
+      'The weeks already saved on this device are claimed for the account this device was actually using — not by whoever happens to sign in first. Nothing is deleted, nothing leaves the device, and your own log book opens exactly as it did before.'
+    ],
+    fixes: [
+      'Fixed creating a new account showing the previous account\'s local data on the same device.',
+      'Fixed a driver\'s saved preferences, vehicles and operator details leaking into another account that later used the same phone or tablet.'
+    ]
+  },
+  {
+    version: '0.31.0',
     date: '2026-10-02',
     features: [
       'Inspection handoff: the Inspection screen now offers a QR code the officer can scan to open your 15-day record on their own phone — no sign-in, read-only.',

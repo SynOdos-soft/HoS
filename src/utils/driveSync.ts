@@ -4,8 +4,9 @@ import { supabase } from './supabaseClient';
 import { getActiveProvider } from './cloudProviders';
 import {
   getAllLogs, getLog, putLogRaw, outboxGetAll, outboxClear, metaGet, metaSet,
-  onLogMutation,
+  onLogMutation, setActiveAccount,
 } from './storage';
+import { ensureAccountScope, putIncomingPrefs, readPrefsSavedAt, writePrefsSavedAt } from './accountScope';
 
 /**
  * Cloud backup & device sync engine.
@@ -21,7 +22,6 @@ import {
  */
 
 const SYNC_STATE_KEY = 'drive-sync-state';
-const PREFS_LOCAL_AT_KEY = 'hos-preferences-saved-at'; // shared with App.tsx
 const MIGRATED_KEY = 'drive-migrated-from-supabase';
 
 type SyncState = 'idle' | 'syncing' | 'error';
@@ -181,6 +181,11 @@ const runSync = async (): Promise<void> => {
       return;
     }
 
+    // Scope local data to the signed-in account before reading or writing
+    // any of it, so a backup can never absorb another driver's rows.
+    await ensureAccountScope(user.id);
+    setActiveAccount(user.id);
+
     await migrateFromSupabaseOnce(user.id);
 
     // ---- Read provider snapshot ----
@@ -198,6 +203,8 @@ const runSync = async (): Promise<void> => {
       const prev = latest.get(e.logId);
       if (!prev || e.ts >= prev.ts) latest.set(e.logId, { kind: e.kind, ts: e.ts });
     }
+    // Only this account's entries are ever flushed (outboxGetAll filters), and
+    // only they are dropped afterwards — another driver's queue is untouched.
 
     const nextIndex = {
       weeks: { ...indexWeeks },
@@ -249,7 +256,7 @@ const runSync = async (): Promise<void> => {
     const remotePrefs = await provider.readPreferences();
     let wrotePrefs = false;
     const remotePrefsAt = remotePrefs?.updatedAt || '';
-    const localSavedAt = localStorage.getItem(PREFS_LOCAL_AT_KEY) || '';
+    const localSavedAt = readPrefsSavedAt(user.id);
     if (!remotePrefs && localPrefs) {
       await provider.writePreferences(localPrefs);
       nextIndex.prefsUpdatedAt = new Date().toISOString();
@@ -257,7 +264,7 @@ const runSync = async (): Promise<void> => {
     } else if (remotePrefsAt && remotePrefsAt > localSavedAt && remotePrefs) {
       // Remote wins only if genuinely newer — same guard as before.
       const incoming = remotePrefs.data;
-      localStorage.setItem('hos-preferences-incoming', JSON.stringify({ ...incoming, savedAt: remotePrefsAt }));
+      putIncomingPrefs(user.id, { ...incoming, savedAt: remotePrefsAt });
       window.dispatchEvent(new CustomEvent('hos-prefs-incoming'));
     } else if (localPrefs && (!remotePrefsAt || localSavedAt > remotePrefsAt)) {
       await provider.writePreferences(localPrefs);
@@ -267,10 +274,10 @@ const runSync = async (): Promise<void> => {
 
     await provider.writeSnapshot(nextIndex);
     await metaSet(`${SYNC_STATE_KEY}:${provider.id}`, seen);
-    await outboxClear();
+    await outboxClear(entries);
     setLastSyncedAt(new Date().toISOString());
     markSessionValidated(user.id);
-    if (wrotePrefs) localStorage.setItem(PREFS_LOCAL_AT_KEY, new Date().toISOString());
+    if (wrotePrefs) writePrefsSavedAt(user.id, new Date().toISOString());
     setState('idle');
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
