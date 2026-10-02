@@ -19,6 +19,18 @@ interface PreferencesMenuProps {
 const VERSIONS = [
   {
     version: APP_VERSION,
+    date: '2026-10-02',
+    features: [
+      'Inspection handoff: the Inspection screen now offers a QR code the officer can scan to open your 15-day record on their own phone — no sign-in, read-only.',
+      'One screen hands over both copies: print the roadside PDF, or copy/share the read-only link if scanning is not convenient.',
+      'Officer mode is built for a roadside stop — large type, 24-hour duty bars, odometer, distance, remarks and an explicit "no log recorded" for empty days, with editing turned off entirely.',
+      'Days you edited after the fact are flagged on the officer screen so the record stays transparent.',
+      'The handoff link now opens as an opaque token — your name, plate and remarks no longer sit in plain text in the address bar or in browser history.',
+      'Cleaner link shape: it reads like https://…/?o=3q2-7w… with no "#" in it, and older links that still carry a "#" open too.'
+    ]
+  },
+  {
+    version: '0.30.5',
     date: '2026-10-01',
     fixes: [
       'Fixed the app showing a blank white screen when opened without internet — it now opens straight into your saved log book, instantly, every time.',

@@ -12,6 +12,8 @@ import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBe
 import { t } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { InspectionView } from './components/InspectionView';
+import { OfficerReport, OfficerLinkError } from './components/OfficerReport';
+import { readOfficerLink } from './utils/officerReport';
 import { ReasonModal } from './components/ReasonModal';
 import { UnlockConfirmModal } from './components/UnlockConfirmModal';
 import { UserMenu } from './components/UserMenu';
@@ -75,6 +77,24 @@ const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMeta
 
 export default function App() {
   const { session, user, loading: authLoading, signOut, authFresh, daysRemaining } = useAuth();
+
+  // Live view of the current location (query + fragment). A QR-scanned
+  // "?o=..." link normally arrives as a fresh page load, but pasting or typing
+  // it into an already open app is a same-document navigation — without this
+  // the officer view would never mount. Browser Back fires popstate/hashchange
+  // too, which returns to the app without a reload.
+  const [locationHref, setLocationHref] = useState(() =>
+    typeof window !== 'undefined' ? window.location.href : ''
+  );
+  useEffect(() => {
+    const syncLocation = () => setLocationHref(window.location.href);
+    window.addEventListener('popstate', syncLocation);
+    window.addEventListener('hashchange', syncLocation);
+    return () => {
+      window.removeEventListener('popstate', syncLocation);
+      window.removeEventListener('hashchange', syncLocation);
+    };
+  }, []);
 
   // Bumped when the OAuth handshake completes so the boot effect below
   // re-evaluates and starts the sync engine. The provider id is only persisted
@@ -849,9 +869,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (view === 'editor') document.body.classList.add('has-footer');
+    // Officer mode renders standalone — the editor's bottom padding must not
+    // add dead space under the read-only report.
+    const officerMode = readOfficerLink(locationHref) !== null;
+    if (view === 'editor' && !officerMode) document.body.classList.add('has-footer');
     else document.body.classList.remove('has-footer');
-  }, [view]);
+  }, [view, locationHref]);
 
   useEffect(() => {
     if (preferences.autoSave && view === 'editor' && currentId) {
@@ -1311,6 +1334,16 @@ export default function App() {
     );
   };
 
+  // --- Officer handoff link ---------------------------------------------
+  // A QR-scanned "?o=..." payload renders a read-only, large-type copy
+  // of the 15-day record. It is checked BEFORE the auth gate on purpose: the
+  // officer's phone has no session and must never see the sign-in screen.
+  const officerLink = readOfficerLink(locationHref);
+  if (officerLink) {
+    if ('error' in officerLink) return <OfficerLinkError error={officerLink.error} />;
+    return <OfficerReport report={officerLink.report} />;
+  }
+
   // --- Auth gate ---------------------------------------------------------
   // While the persisted session is being restored, show a minimal loading
   // screen rather than nothing: an empty container is indistinguishable from
@@ -1399,7 +1432,7 @@ export default function App() {
           />
         ) : view === 'audit' ? (
           <main aria-label="Inspection">
-            <InspectionView logs={savedLogs} preferences={preferences} />
+            <InspectionView logs={savedLogs} preferences={preferences} onRoadsidePDF={handleRoadsidePDF} />
           </main>
         ) : view === 'dashboard' ? (
           <main aria-label="Dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

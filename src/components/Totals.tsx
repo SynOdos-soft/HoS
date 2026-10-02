@@ -20,11 +20,15 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
     return acc;
   }, {} as Record<Status, number>);
 
+  // Durations render zero-padded as HH:MM (00:00, 07:30, 24:00) so the totals
+  // read like the 00:00-style hour labels on the log grid.
   const formatHours = (quarters: number) => {
     const hours = Math.floor(quarters / 4);
     const mins = (quarters % 4) * 15;
-    return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   };
+
+  const formatLimit = (hours: number) => `${String(hours).padStart(2, '0')}:00`;
 
   const calculateTotalKm = () => {
     const primaryStart = Number(startOdometer);
@@ -65,7 +69,7 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: isOverLimit ? 'var(--accent-red)' : 'var(--status-driving)' }}>
           <SteeringWheel size={14} /> {formatHours(drivingQuarters)}
           {isOverLimit && <AlertTriangle size={14} style={{ color: 'var(--accent-red)' }} />}
-          {isOverLimit && <span style={{ fontSize: '0.7rem' }}>({limitHours}h)</span>}
+          {isOverLimit && <span style={{ fontSize: '0.7rem' }}>({formatLimit(limitHours)})</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }}>
           <Briefcase size={14} /> {formatHours(counts['on-duty'] || 0)}
@@ -95,7 +99,7 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
           {isOverLimit && <AlertTriangle size={16} color="var(--accent-red)" />}
         </div>
         <div className="value" style={isOverLimit ? { color: 'var(--accent-red)' } : {}}>{formatHours(drivingQuarters)}</div>
-        {isOverLimit && <div style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 700, marginTop: '2px' }}>LIMIT: {limitHours}h</div>}
+        {isOverLimit && <div style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 700, marginTop: '2px' }}>LIMIT: {formatLimit(limitHours)}</div>}
       </div>
       <div className="total-card on-duty">
         <h3>On-Duty</h3>

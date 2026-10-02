@@ -2271,8 +2271,10 @@ textarea:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 5000;
-  display: grid;
-  place-items: center;
+  /* Flex + auto margins: centered when there is room, top-aligned and
+     scrollable when a tall modal (e.g. the handoff QR) exceeds the viewport. */
+  display: flex;
+  overflow-y: auto;
   padding: var(--space-4);
   background: rgba(15, 23, 42, 0.66);
   backdrop-filter: blur(3px);
@@ -2280,6 +2282,7 @@ textarea:focus-visible {
 
 .ui-modal {
   width: min(100%, 32rem);
+  margin: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -2352,5 +2355,491 @@ textarea:focus-visible {
 
   .ui-modal-actions button {
     width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Inspection handoff (roadside PDF + on-screen QR) and officer mode  *
+ * ---------------------------------------------------------------- */
+
+.ui-modal {
+  position: relative;
+}
+
+.inspection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.inspection-toolbar-copy h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.inspection-toolbar-copy p {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.inspection-toolbar .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.15rem;
+}
+
+.handoff-dismiss {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  place-items: center;
+  padding: 0.35rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.handoff-dismiss:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+}
+
+.handoff-qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.handoff-qr-frame {
+  padding: 0.7rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.35);
+  line-height: 0;
+}
+
+@media (max-width: 480px) {
+  .handoff-qr-frame svg {
+    width: min(232px, 56vw);
+    height: auto;
+  }
+}
+
+.handoff-qr-caption {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.handoff-url {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  /* Visual ellipsis only — the text stays complete, so copying it never
+     yields a truncated token. */
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+  cursor: text;
+  user-select: all;
+}
+
+.handoff-qr-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px dashed var(--glass-border);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.handoff-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.handoff-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.handoff-note-warning {
+  border-color: color-mix(in srgb, var(--accent-orange) 55%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+  color: var(--accent-orange);
+}
+
+/* --- Officer mode: large type, zero editing ------------------------- */
+
+.officer-root {
+  min-height: 100dvh;
+  padding: 1rem 1rem 2.5rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+.officer-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+.officer-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--accent-blue-solid);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent-blue-solid) 14%, transparent);
+}
+
+.officer-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.officer-shield {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue-solid) 22%, transparent);
+}
+
+.officer-banner h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.officer-banner p {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.officer-readonly {
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: var(--accent-blue-solid);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.officer-identity {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+}
+
+.officer-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.85rem 1rem;
+  margin: 0;
+}
+
+.officer-fact-wide {
+  grid-column: 1 / -1;
+}
+
+.officer-fact dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.officer-fact dd {
+  margin: 0.2rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.officer-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.officer-summary > div {
+  padding: 0.85rem 0.5rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  text-align: center;
+}
+
+.officer-summary strong {
+  display: block;
+  font-size: clamp(1.1rem, 5vw, 1.45rem);
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.officer-summary span {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.officer-days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.officer-day {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+}
+
+.officer-day-today {
+  border-color: var(--accent-blue-solid);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+}
+
+.officer-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.officer-date {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.officer-day-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.officer-pill {
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.officer-pill-today {
+  border-color: var(--accent-blue-solid);
+  background: color-mix(in srgb, var(--accent-blue-solid) 20%, transparent);
+  color: var(--accent-blue);
+}
+
+.officer-empty {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+}
+
+.officer-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.officer-total {
+  padding: 0.6rem 0.55rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+.officer-total b {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.officer-total span {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.officer-bar {
+  display: flex;
+  height: 30px;
+  margin-top: 0.8rem;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+}
+
+.officer-bar span {
+  display: block;
+  height: 100%;
+}
+
+.officer-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.officer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.officer-edited {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+  color: var(--accent-orange);
+}
+
+.officer-remarks {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border-left: 3px solid var(--accent-blue-solid);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  font-size: 1.05rem;
+  font-style: italic;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.officer-footer svg {
+  flex: 0 0 auto;
+}
+
+.officer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.officer-exit {
+  align-self: center;
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.officer-exit:hover {
+  border-color: var(--accent-blue-solid);
+  color: var(--text-primary);
+}
+
+@media (max-width: 420px) {
+  .officer-root {
+    padding: 0.75rem 0.75rem 2rem;
+  }
+
+  .officer-banner h1 {
+    font-size: 1.3rem;
+  }
+
+  .officer-summary strong {
+    font-size: 1.35rem;
+  }
+
+  .officer-totals {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media print {
+  .officer-root {
+    padding: 0;
+    background: #ffffff;
+    color: #000000;
+  }
+
+  .officer-day,
+  .officer-summary > div,
+  .officer-identity {
+    break-inside: avoid;
+    border-color: #999999;
+    background: #ffffff;
   }
 }

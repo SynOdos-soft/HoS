@@ -5,7 +5,11 @@ what exists today: weekly log grid, roadside inspection view, audit trail with r
 codes, auto-locking, PDF exports, encrypted Google Drive sync, saved vehicles and
 operator companies, presets.
 
-_Last updated: 2026-09-20 (v0.21.1)_
+_Last updated: 2026-10-02 (v0.31.0)_
+
+> ✅ Done in **v0.31.0**: **Simplified inspection handoff** — the Inspection screen now
+> offers a roadside PDF plus an on-screen QR code that opens the 15-day report read-only on
+> the officer's phone ("officer mode": large type, no editing).
 
 > ✅ Done in **v0.21.1**: **PWA update flow** — prompted service worker updates with
 > an "Update to vX.Y.Z" banner (vite-plugin-pwa `registerType: 'prompt'`).
@@ -36,9 +40,6 @@ _Last updated: 2026-09-20 (v0.21.1)_
   24h owed, warn when it must be repaid.
 - **Split sleeper berth** — proper 8/2 split math for sleeper-berth pairs; currently
   the app tracks sleeper hours but doesn't compute split exemptions.
-- **Simplified inspection handoff** — roadside PDF plus a QR code on screen that
-  opens the 15-day report on a phone for the officer; "officer mode" with large
-  type and no editing.
 - **Document wallet** — per-vehicle insurance, registration, and annual inspection
   certificate photos (camera capture), shown in Inspection view next to the plate.
 - **Odometer-driven maintenance nudges** — we already track sequential odometers and

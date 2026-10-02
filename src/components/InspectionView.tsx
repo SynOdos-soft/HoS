@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import { WeeklyLog, DayEntry, AuditEntry, Preferences, WeeklyMetadata } from '../types';
-import { FileText, User, Coffee, Bed, Briefcase, Route, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, User, Coffee, Bed, Briefcase, Route, ChevronDown, ChevronUp, QrCode } from 'lucide-react';
 import { format, subDays, parseISO } from 'date-fns';
 import { LogGrid } from './LogGrid';
 import { SteeringWheel } from './Icons';
+import { HandoffModal } from './HandoffModal';
 
 interface InspectionViewProps {
   logs: WeeklyLog[];
   preferences: Preferences;
+  /** Opens the roadside (15-day) PDF export — handed over from the App shell. */
+  onRoadsidePDF?: () => void;
 }
 
-export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preferences }) => {
+export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preferences, onRoadsidePDF }) => {
   const [userToggledDates, setUserToggledDates] = useState<Record<string, boolean>>({});
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [showHandoff, setShowHandoff] = useState(false);
 
   const today = new Date();
   const last15Days = Array.from({ length: 15 }).map((_, i) => subDays(today, i));
@@ -66,6 +70,25 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
 
   return (
     <div className="inspection-view-container">
+      {/* Handoff bar: roadside PDF + on-screen QR for the officer's phone */}
+      <div className="inspection-toolbar no-print">
+        <div className="inspection-toolbar-copy">
+          <h2>15-Day Record</h2>
+          <p>Read-only compliance review of the last 15 days.</p>
+        </div>
+        <button className="btn-primary" onClick={() => setShowHandoff(true)}>
+          <QrCode size={16} /> Handoff
+        </button>
+      </div>
+
+      <HandoffModal
+        isOpen={showHandoff}
+        onClose={() => setShowHandoff(false)}
+        logs={logs}
+        preferences={preferences}
+        onRoadsidePDF={onRoadsidePDF || (() => undefined)}
+      />
+
       {/* 15-day status grid */}
       <div className="inspection-grid">
         {last15Days.map((date, idx) => {
