@@ -1,8 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { Coffee, Bed, Briefcase, Route, Shield, Pencil, FileText } from 'lucide-react';
-import { APP_VERSION, Status } from '../types';
+import {
+  Coffee, Bed, Briefcase, Route, ChevronDown, ChevronUp, FileText, Pencil, ArrowLeft,
+} from 'lucide-react';
+import { APP_VERSION, Preferences } from '../types';
 import { SteeringWheel } from './Icons';
+import { LogGrid } from './LogGrid';
 import {
   OfficerDay,
   OfficerReport as OfficerReportData,
@@ -12,222 +15,341 @@ import {
 } from '../utils/officerReport';
 import { useT, dateLocaleFor, getI18nLanguage } from '../utils/i18n';
 
-const STATUS_COLOR: Record<Status, string> = {
-  'off-duty': 'var(--status-off-duty)',
-  sleeper: 'var(--status-sleeper)',
-  driving: 'var(--status-driving)',
-  'on-duty': 'var(--status-on-duty)',
-};
+/**
+ * The officer's screen.
+ *
+ * This renders through the SAME containers, cards and class names as the
+ * driver's own Inspection screen (`inspection-view-container` →
+ * `inspection-toolbar` → `inspection-grid` → `inspection-card` → `card-header`
+ * / `card-body`), including the shared `LogGrid`, `card-grid-scroll` and
+ * `card-metadata-box`. That is deliberate: an officer checking a driver's record
+ * and the driver checking the same record must be reading identical numbers in
+ * identical places, so there is one layout with two data sources rather than a
+ * lookalike that can drift.
+ *
+ * The only differences are the things a recipient must not have: no Handoff
+ * button, no editing affordances, no audit trail, and a link back to the app.
+ * It mounts before the sign-in gate — the phone scanning the QR has no session.
+ */
 
-/** 24-hour duty bar built from the 96 quarter-hour slots. */
-const DayBar: React.FC<{ grid: Status[] }> = ({ grid }) => {
-  const segments = useMemo(() => {
-    const out: { status: Status; length: number }[] = [];
-    for (const slot of grid) {
-      const last = out[out.length - 1];
-      if (last && last.status === slot) last.length++;
-      else out.push({ status: slot, length: 1 });
-    }
-    return out;
-  }, [grid]);
-
-  return (
-    <div className="officer-bar" aria-hidden="true">
-      {segments.map((segment, index) => (
-        <span
-          key={index}
-          style={{ flexGrow: segment.length, background: STATUS_COLOR[segment.status] }}
-        />
-      ))}
-    </div>
-  );
-};
-
-const Total: React.FC<{ icon: React.ReactNode; label: string; value: string; color: string }> = ({
-  icon,
-  label,
-  value,
-  color,
-}) => (
-  <div className="officer-total">
-    <b style={{ color }}>{value}</b>
-    <span>{icon} {label}</span>
-  </div>
-);
-
-const DayCard: React.FC<{ day: OfficerDay; cycle: string; isToday: boolean }> = ({ day, cycle, isToday }) => {
-  const totals = officerTotals(day.grid);
+/** One day, laid out exactly like the driver's Inspection day card. */
+const DayCard: React.FC<{
+  day: OfficerDay;
+  report: OfficerReportData;
+  isToday: boolean;
+}> = ({ day, report, isToday }) => {
   const t = useT();
+  const locale = dateLocaleFor(getI18nLanguage());
+  const totals = officerTotals(day.grid);
+  const is24hOffDuty = day.grid.every(v => v === 'off-duty');
+  const [expanded, setExpanded] = useState(!is24hOffDuty);
+
+  // The officer page carries no preferences blob (it is a bare link); the grid
+  // only ever consults this one flag.
+  const gridPrefs = useMemo(() => ({ showSleeper: true }) as Preferences, []);
+
+  if (!day.recorded) {
+    return (
+      <div className="inspection-card glass-panel">
+        <div className="card-header">
+          <div className="date-badge">
+            <span>{format(parseISO(day.date), 'EEEE, MMM d', { locale })}</span>
+          </div>
+        </div>
+        <div className="card-empty">
+          <p>{t('noLogData')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const cycleLabel = report.cycle === '14-Day' ? 'C2' : 'C1';
 
   return (
-    <article className={`officer-day${isToday ? ' officer-day-today' : ''}`}>
-      <header className="officer-day-head">
-        <h3 className="officer-date">{format(parseISO(day.date), 'EEEE, yyyy/MM/dd', { locale: dateLocaleFor(getI18nLanguage()) })}</h3>
-        <div className="officer-day-tags">
-          {isToday && <span className="officer-pill officer-pill-today">{t('todayPill')}</span>}
-          <span className="officer-pill">{cycle === '14-Day' ? 'C2' : 'C1'}</span>
+    <div className="inspection-card glass-panel">
+      <div
+        className="card-header"
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => setExpanded(e => !e)}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>
+              {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
+            <div className="date-badge">
+              <span>{format(parseISO(day.date), 'EEEE, MMM d', { locale })}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {!expanded && (
+              <div className="mini-totals-compact" style={{
+                display: 'flex', alignItems: 'center', gap: '0.6rem',
+                fontSize: '0.75rem', fontWeight: 700, marginRight: '0.5rem', whiteSpace: 'nowrap',
+              }}>
+                {/* officerTotals counts quarter-hours (96 slots = 24h), so divide
+                    by 4 here — the app's own badge is already in hours. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', color: 'var(--status-off-duty)' }}>
+                  <Coffee size={12} /> {Math.floor(totals.off / 4)}h
+                </div>
+                {totals.sleeper > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', color: 'var(--status-sleeper)' }}>
+                    <Bed size={12} /> {Math.floor(totals.sleeper / 4)}h
+                  </div>
+                )}
+                {totals.driving > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', color: 'var(--status-driving)' }}>
+                    <SteeringWheel size={12} /> {Math.floor(totals.driving / 4)}h
+                  </div>
+                )}
+                {totals.onDuty > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', color: 'var(--status-on-duty)' }}>
+                    <Briefcase size={12} /> {Math.floor(totals.onDuty / 4)}h
+                  </div>
+                )}
+              </div>
+            )}
+            {isToday && <span className="today-pill">{t('todayPill')}</span>}
+            <button
+              className="today-pill"
+              style={{
+                background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                border: '1px solid var(--glass-border)', padding: '2px 8px', fontSize: '0.7rem',
+              }}
+              onClick={(e) => e.stopPropagation()}
+              disabled
+            >
+              {cycleLabel}
+            </button>
+          </div>
         </div>
-      </header>
+      </div>
 
-      {!day.recorded ? (
-        <p className="officer-empty">{t('officerNoEntries')}</p>
-      ) : (
-        <>
-          <div className="officer-totals">
-            <Total icon={<SteeringWheel size={15} />} label={t('totalsDriving')} value={formatQuarterHours(totals.driving)} color="var(--status-driving)" />
-            <Total icon={<Briefcase size={15} />} label={t('totalsOnDuty')} value={formatQuarterHours(totals.onDuty)} color="var(--status-on-duty)" />
-            <Total icon={<Bed size={15} />} label={t('totalsSleeper')} value={formatQuarterHours(totals.sleeper)} color="var(--status-sleeper)" />
-            <Total icon={<Coffee size={15} />} label={t('totalsOffDuty')} value={formatQuarterHours(totals.off)} color="var(--status-off-duty)" />
-            <Total icon={<Route size={15} />} label={t('distance')} value={`${day.distanceKm ? `${Math.round(day.distanceKm)} km` : '—'}`} color="var(--text-secondary)" />
+      {expanded && (
+        <div className="card-body">
+          <div className="card-grid-scroll" style={{ width: '100%' }}>
+            <LogGrid grid={day.grid} preferences={gridPrefs} date={day.date} />
           </div>
 
-          <DayBar grid={day.grid} />
-          <div className="officer-scale" aria-hidden="true">
-            <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
-          </div>
+          <div style={{ marginTop: '1rem' }}>
+            <div
+              className="btn-primary"
+              style={{
+                display: 'flex', background: 'transparent', border: '1px solid var(--glass-border)',
+                color: 'var(--text-secondary)', width: '100%', justifyContent: 'space-between',
+                fontSize: '0.85rem', padding: '0.5rem 1rem', overflow: 'hidden',
+              }}
+            >
+              <div className="mini-totals-compact" style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+                fontWeight: 700, marginRight: '0.5rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-off-duty)' }}>
+                  <Coffee size={15} /> {formatQuarterHours(totals.off)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-sleeper)' }}>
+                  <Bed size={15} /> {formatQuarterHours(totals.sleeper)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-driving)' }}>
+                  <SteeringWheel size={15} /> {formatQuarterHours(totals.driving)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }}>
+                  <Briefcase size={15} /> {formatQuarterHours(totals.onDuty)}
+                </div>
+                {day.distanceKm > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
+                    <Route size={15} /> {Math.round(day.distanceKm)}km
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <div className="officer-meta">
-            {(day.startOdometer || day.endOdometer) && (
-              <span>ODO {day.startOdometer || '—'} → {day.endOdometer || '—'}</span>
-            )}
-            {day.plate && <span>CMV {day.plate}</span>}
             {day.editedLater && (
-              <span className="officer-edited"><Pencil size={13} aria-hidden="true" /> {t('editedAfterTheFact')}</span>
+              <span className="officer-edited" style={{ marginTop: '0.6rem', display: 'inline-flex' }}>
+                <Pencil size={13} aria-hidden="true" /> {t('editedAfterTheFact')}
+              </span>
             )}
-          </div>
 
-          {day.remarks && <p className="officer-remarks">{day.remarks}</p>}
-        </>
+            <div className="card-metadata-box" style={{ marginTop: '0.75rem' }}>
+              {day.remarks && (
+                <div className="metadata-row">
+                  <div className="metadata-tag">{t('tagRemarks')}</div>
+                  <div className="metadata-value italic"><span>{day.remarks}</span></div>
+                </div>
+              )}
+              {(day.startOdometer || day.endOdometer) && (
+                <div className="metadata-row">
+                  <div className="metadata-tag">{t('tagOdometer')}</div>
+                  <div className="metadata-value">
+                    <span>{day.startOdometer || '--'} → {day.endOdometer || '--'}</span>
+                  </div>
+                </div>
+              )}
+              {!is24hOffDuty && (
+                <div className="metadata-row">
+                  <div className="metadata-tag">{t('tagCmvPlate')}</div>
+                  <div className="metadata-value"><span>{day.plate || report.plate || '--'}</span></div>
+                </div>
+              )}
+              {report.trailer && (
+                <div className="metadata-row">
+                  <div className="metadata-tag">{t('tagTrailer')}</div>
+                  <div className="metadata-value"><span>{report.trailer}</span></div>
+                </div>
+              )}
+              {report.coDriver && (
+                <div className="metadata-row">
+                  <div className="metadata-tag">{t('tagCoDriver')}</div>
+                  <div className="metadata-value"><span>{report.coDriver}</span></div>
+                </div>
+              )}
+              <div className="metadata-row">
+                <div className="metadata-tag">{t('tagHomeTerminal')}</div>
+                <div className="metadata-value"><span>{report.homeTerminal || '--'}</span></div>
+              </div>
+              <div className="metadata-row">
+                <div className="metadata-tag">{t('tagOperator')}</div>
+                <div className="metadata-value"><span>{report.operator || '--'}</span></div>
+              </div>
+              <div className="metadata-row">
+                <div className="metadata-tag">{t('tagMainOffice')}</div>
+                <div className="metadata-value"><span>{report.operatorAddress || '--'}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </article>
+    </div>
   );
 };
 
 /**
- * The officer's screen: a large-type, read-only rendering of the handoff
- * payload. It is mounted before the sign-in gate, because the phone scanning
- * the QR code has no session — and no editing controls, by design.
+ * Shared shell for the record, loading and error screens.
+ *
+ * `subtitle` replaces the usual description with the date and time the record
+ * was generated — the first thing an officer checks against the time on their
+ * own paperwork.
  */
-export const OfficerReport: React.FC<{ report: OfficerReportData }> = ({ report }) => {
-  const today = format(new Date(), 'yyyy-MM-dd');
+const OfficerShell: React.FC<{ children: React.ReactNode; subtitle?: string }> = ({ children, subtitle }) => {
   const t = useT();
-
-  const summary = useMemo(() => {
-    let drivingQuarters = 0;
-    let distanceKm = 0;
-    let recorded = 0;
-    for (const day of report.days) {
-      if (!day.recorded) continue;
-      recorded++;
-      drivingQuarters += officerTotals(day.grid).driving;
-      distanceKm += day.distanceKm;
-    }
-    return { drivingQuarters, distanceKm, recorded };
-  }, [report]);
-
-  const fact = (label: string, value: string, wide = false) =>
-    value ? (
-      <div className={`officer-fact${wide ? ' officer-fact-wide' : ''}`}>
-        <dt>{label}</dt>
-        <dd>{value}</dd>
+  return (
+    <div className="inspection-view-container officer-page">
+      <div className="inspection-toolbar no-print">
+        <div className="inspection-toolbar-copy">
+          <h2>{t('fifteenDayRecord')}</h2>
+          <p>{subtitle ?? t('officerModeBanner')}</p>
+        </div>
       </div>
-    ) : null;
+      {children}
+    </div>
+  );
+};
 
-  const newestFirst = [...report.days].reverse();
+/**
+ * Whose record this is.
+ *
+ * The driver's own Inspection screen never has to say this — it is always their
+ * record. An officer opening someone else's link absolutely does, so it is
+ * stated up front rather than left for the officer to infer.
+ *
+ * Only the record-level facts live here. CMV plate, trailer, operator, home
+ * terminal, main office and co-driver are per-day rows on each day card (as in
+ * the driver's view), so repeating them here would only duplicate values that
+ * can legitimately differ from day to day.
+ */
+const RecordIdentity: React.FC<{ report: OfficerReportData }> = ({ report }) => {
+  const t = useT();
+  const rows: Array<[string, string]> = [
+    [t('factDriver'), report.driver || '--'],
+    [t('factCycle'), report.cycle === '14-Day' ? t('cycle14Day') : t('cycle7Day')],
+  ];
+  
 
   return (
-    <div className="officer-root">
-      <div className="officer-shell">
-        <header className="officer-banner">
-          <div className="officer-banner-title">
-            <span className="officer-shield"><Shield size={24} aria-hidden="true" /></span>
-            <div>
-              <h1>{t('fifteenDayDriverLog')}</h1>
-              <p>{t('officerModeBanner')}</p>
-            </div>
+    <div className="inspection-card glass-panel" style={{ marginBottom: '1rem' }}>
+      <div className="card-body">
+        {/* Rows sit directly in the card: wrapping them in the metadata box
+            put a bordered panel inside another bordered panel. */}
+        {rows.map(([label, value]) => (
+          <div className="metadata-row" key={label}>
+            <div className="metadata-tag">{label}</div>
+            <div className="metadata-value"><span>{value}</span></div>
           </div>
-          <span className="officer-readonly">{t('officerReadOnly')}</span>
-        </header>
-
-        <section className="officer-identity" aria-label={t('driverAndCarrier')}>
-          <dl className="officer-facts">
-            {fact(t('factDriver'), report.driver || '—')}
-            {fact(t('factCycle'), report.cycle === '14-Day' ? `${t('cycle14Day')} / 120 h (C2)` : `${t('cycle7Day')} / 70 h (C1)`)}
-            {fact(t('factPlate'), report.plate || '—')}
-            {fact(t('factTrailer'), report.trailer)}
-            {fact(t('factOperator'), report.operator, true)}
-            {fact(t('factMainOffice'), report.operatorAddress, true)}
-            {fact(t('factHomeTerminal'), report.homeTerminal, true)}
-            {fact(t('factCoDriver'), report.coDriver)}
-            {fact(
-              t('factGenerated'),
-              report.generatedAt ? format(new Date(report.generatedAt), 'yyyy/MM/dd HH:mm') : ''
-            )}
-          </dl>
-        </section>
-
-        <section className="officer-summary" aria-label={t('summary15Day')}>
-          <div>
-            <strong>{formatQuarterHours(summary.drivingQuarters)}</strong>
-            <span>{t('totalsDriving')}</span>
-          </div>
-          <div>
-            <strong>{summary.distanceKm ? `${Math.round(summary.distanceKm)} km` : '—'}</strong>
-            <span>{t('distance')}</span>
-          </div>
-          <div>
-            <strong>{summary.recorded} / {report.days.length}</strong>
-            <span>{t('daysLogged')}</span>
-          </div>
-        </section>
-
-        <section className="officer-days" aria-label={t('dailyRecords')}>
-          {newestFirst.map(day => (
-            <DayCard key={day.date} day={day} cycle={report.cycle} isToday={day.date === today} />
-          ))}
-        </section>
-
-        <footer className="officer-footer">
-          <FileText size={16} aria-hidden="true" /><span>{t('officerFooterNote')} v{APP_VERSION}</span>
-        </footer>
-
-        <button className="officer-exit" type="button" onClick={closeOfficerReport}>
-          {t('officerCloseReport')}
-        </button>
+        ))}
       </div>
     </div>
   );
 };
 
-/** Shown when the scanned link is damaged or truncated. */
-export const OfficerLinkError: React.FC<{ error: string }> = ({ error }) => {
-  const et = useT();
+export const OfficerReport: React.FC<{ report: OfficerReportData }> = ({ report }) => {
+  const t = useT();
+  const locale = dateLocaleFor(getI18nLanguage());
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const generated = report.generatedAt
+    ? format(new Date(report.generatedAt), 'yyyy/MM/dd HH:mm', { locale })
+    : null;
+
   return (
-  <div className="officer-root">
-    <div className="officer-shell">
-      <header className="officer-banner">
-        <div className="officer-banner-title">
-          <span className="officer-shield"><Shield size={24} aria-hidden="true" /></span>
-          <div>
-            <h1>{et('fifteenDayDriverLog')}</h1>
-            <p>{et('officerModeBanner')}</p>
+    <OfficerShell subtitle={generated ? `${t('officerGeneratedAt')} ${generated}` : t('officerModeBanner')}>
+      <RecordIdentity report={report} />
+
+      <div className="inspection-grid">
+        {report.days.map(day => (
+          <DayCard key={day.date} day={day} report={report} isToday={day.date === todayStr} />
+        ))}
+      </div>
+
+      <footer className="officer-footer no-print">
+        <p className="officer-footer-note">{t('officerFooterNote')}</p>
+        <p className="officer-footer-version">v{APP_VERSION}</p>
+      </footer>
+    </OfficerShell>
+  );
+};
+
+/** Brief state while a short share link is fetched from the server. */
+export const OfficerLinkLoading: React.FC = () => {
+  const t = useT();
+  return (
+    <OfficerShell>
+      <div className="glass-panel" role="status" aria-live="polite" style={{ padding: '3rem', textAlign: 'center' }}>
+        <div className="loading-spinner" style={{ margin: '0 auto' }} aria-hidden="true" />
+        <p style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>{t('officerLoadingRecord')}</p>
+      </div>
+    </OfficerShell>
+  );
+};
+
+/**
+ * Shown when the scanned link cannot be opened: damaged, truncated, or simply
+ * past its 7-day life. An expired link is a normal outcome, not a fault, so it
+ * gets its own wording instead of the generic "ask the driver" message.
+ */
+export const OfficerLinkError: React.FC<{ error: string; expired?: boolean }> = ({ error, expired }) => {
+  const t = useT();
+  return (
+    <OfficerShell>
+      <div className="inspection-card glass-panel">
+        <div className="card-body" style={{ padding: '2rem', textAlign: 'center' }}>
+          <FileText size={40} style={{ marginBottom: '0.75rem', color: 'var(--text-secondary)' }} aria-hidden="true" />
+          <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem' }}>
+            {expired ? t('expiredHandoffLink') : t('invalidHandoffLink')}
+          </h2>
+          <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+            {expired ? t('expiredHandoffBody') : error}
+          </p>
+          {!expired && (
+            <p style={{ margin: '0.75rem 0 0', color: 'var(--text-secondary)' }}>
+              {t('invalidHandoffBody')}
+            </p>
+          )}
+          <div style={{ marginTop: '1.25rem' }}>
+            <button className="btn-primary" onClick={closeOfficerReport}>
+              <ArrowLeft size={16} /> {t('backToApp')}
+            </button>
           </div>
         </div>
-        <span className="officer-readonly">{et('officerReadOnly')}</span>
-      </header>
-      <section className="officer-day officer-day-today">
-        <h2 style={{ margin: '0 0 0.5rem' }}>{et('invalidHandoffLink')}</h2>
-        <p style={{ margin: 0, fontSize: '1.05rem' }}>{error}</p>
-        <p style={{ margin: '0.75rem 0 0', color: 'var(--text-secondary)' }}>
-          {et('invalidHandoffBody')}
-        </p>
-        <div style={{ marginTop: '1rem' }}>
-          <button className="btn-primary" type="button" onClick={closeOfficerReport}>
-            {et('backToApp')}
-          </button>
-        </div>
-      </section>
-    </div>
-  </div>
+      </div>
+    </OfficerShell>
   );
 };

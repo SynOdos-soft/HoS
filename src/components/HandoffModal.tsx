@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QrCode, Download, Copy, Check, Share2, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Preferences, WeeklyLog } from '../types';
-import { buildOfficerReport, buildOfficerUrl } from '../utils/officerReport';
+import { buildOfficerReport, encodeOfficerReport } from '../utils/officerReport';
+import { publishOfficerReport, OFFICER_LINK_TTL_DAYS } from '../utils/officerShare';
 import { QrCodeSvg } from './QrCodeSvg';
 import { useT } from '../utils/i18n';
 
@@ -48,13 +49,48 @@ export const HandoffModal: React.FC<HandoffModalProps> = ({ isOpen, onClose, log
   const copyTimer = useRef<number | undefined>(undefined);
 
   const report = useMemo(() => buildOfficerReport(logs, preferences), [logs, preferences]);
-  const link = useMemo(() => {
-    try {
-      return { url: buildOfficerUrl(report) };
-    } catch (error) {
-      return { url: '', error: error instanceof Error ? error.message : 'Could not build the report link.' };
-    }
-  }, [report]);
+
+  // One link type only: a short server-stored token that expires after 7 days.
+  // The old offline inline-token QR is deliberately not offered — it could be
+  // kilobytes long, could not expire, and put the driver's record in the URL.
+  // When publishing fails (no signal, or the subscription write is blocked) the
+  // printed PDF below is the handoff path, so the modal says so plainly rather
+  // than silently degrading.
+  const [link, setLink] = useState<{ url: string; error?: string; expiresInDays?: number }>({ url: '' });
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setLink({ url: '' });
+
+    const run = async () => {
+      let payload = '';
+      try {
+        payload = encodeOfficerReport(report);
+      } catch (error) {
+        if (cancelled) return;
+        setLink({ url: '', error: error instanceof Error ? error.message : 'The report could not be prepared.' });
+        return;
+      }
+
+      let published;
+      try {
+        published = await publishOfficerReport(payload);
+      } catch (error) {
+        published = {
+          url: '',
+          expiresAt: null,
+          error: error instanceof Error ? error.message : 'Could not share the report.',
+        };
+      }
+      if (cancelled) return;
+      setLink(published.url
+        ? { url: published.url, expiresInDays: OFFICER_LINK_TTL_DAYS }
+        : { url: '', error: published.error || 'The report link could not be generated.' });
+    };
+
+    void run();
+    return () => { cancelled = true; };
+  }, [isOpen, report]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -129,12 +165,26 @@ export const HandoffModal: React.FC<HandoffModalProps> = ({ isOpen, onClose, log
               {/* Full text in the DOM, ellipsised with CSS: a copied selection
                   can never be a truncated (and therefore broken) token. */}
               <code className="handoff-url" title={link.url}>{link.url}</code>
+              {link.expiresInDays ? (
+                <p className="handoff-qr-caption" style={{ fontSize: '0.75rem' }}>
+                  {t('linkExpiresInDays').replace('{n}', String(link.expiresInDays))}
+                </p>
+              ) : null}
             </>
           ) : (
-            <p className="handoff-qr-caption" style={{ color: 'var(--accent-red)' }}>
-              {link.error || 'The report link could not be generated.'}
+            <p className="handoff-qr-caption" style={{ color: 'var(--text-secondary)' }}>
+              {t('preparingLink')}
             </p>
           )}
+          {link.error ? (
+            <div className="handoff-note handoff-note-warning" style={{ marginTop: '0.5rem' }}>
+              <AlertTriangle size={16} aria-hidden="true" />
+              <span>
+                {t('linkUnavailableUsePdf')}
+                {link.error ? <em style={{ opacity: 0.8 }}> ({link.error})</em> : null}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {unreachable && (

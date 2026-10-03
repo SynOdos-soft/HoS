@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from '../utils/supabaseClient';
 import { fetchEntitlement, type Entitlement } from '../utils/entitlements';
+import { stripBareHash } from '../utils/urlCleanup';
 
 interface AuthContextValue {
   /** undefined while the persisted session is being restored; null once known signed-out. */
@@ -227,6 +228,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     void restoreSession();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // auth-js clears the OAuth fragment with `location.hash = ''`, which
+      // leaves a bare "#" in the address bar. This event is where that has
+      // happened, so clean up here rather than racing it with a timer.
+      stripBareHash();
       if (!mounted.current) return;
       setSession(prev => {
         // initialize() flushes a buffered INITIAL_SESSION after its (possibly

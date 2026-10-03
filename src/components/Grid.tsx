@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { Status, Preferences } from '../types';
 import { Plus, ChevronUp, ChevronDown, EyeOff } from 'lucide-react';
 import { isToday as isDateToday, parseISO } from 'date-fns';
+import { useT, type TranslationKey } from '../utils/i18n';
 
 interface GridProps {
   grid: Status[];
@@ -26,9 +27,20 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked, 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const t = useT();
+
   const STATUS_OPTIONS: Status[] = preferences.showSleeper 
     ? ['off-duty', 'sleeper', 'driving', 'on-duty']
     : ['off-duty', 'driving', 'on-duty'];
+
+  // Row captions are words in the UI language, sentence case — the same
+  // treatment the inspection LogGrid gives them.
+  const STATUS_LABEL_KEYS: Record<string, TranslationKey> = {
+    'off-duty': 'offDuty',
+    sleeper: 'sleeper',
+    driving: 'driving',
+    'on-duty': 'onDuty',
+  };
 
   // Determine the first active hour (first cell that is not off-duty)
   const firstActiveCellIndex = grid.findIndex(val => val !== 'off-duty');
@@ -173,7 +185,7 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked, 
       <div className="timeline-grid">
         <div className="grid-header-row">
           <div className="grid-status-label time-header">
-            TIME
+            {t('gridTimeLabel')}
           </div>
           {Array.from({ length: renderedHoursCount }).map((_, idx) => {
             const h = startHour + idx;
@@ -233,7 +245,7 @@ export const Grid: React.FC<GridProps> = ({ grid, setGrid, preferences, locked, 
         {STATUS_OPTIONS.map((status) => (
           <div className="grid-status-row" key={status}>
             <div className="grid-status-label">
-              {status.toUpperCase().replace('-', ' ')}
+              {t(STATUS_LABEL_KEYS[status])}
             </div>
             {Array.from({ length: renderedHoursCount }).map((_, idx) => {
               const h = startHour + idx;

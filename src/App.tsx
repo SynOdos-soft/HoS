@@ -17,8 +17,9 @@ import { t } from './utils/i18n';
 import { useT as useTranslator, setI18nLanguage, dateLocaleFor } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { InspectionView } from './components/InspectionView';
-import { OfficerReport, OfficerLinkError } from './components/OfficerReport';
+import { OfficerReport, OfficerLinkError, OfficerLinkLoading } from './components/OfficerReport';
 import { readOfficerLink } from './utils/officerReport';
+import { readShortToken, resolveOfficerToken, type ResolvedOfficerLink } from './utils/officerShare';
 import { ReasonModal } from './components/ReasonModal';
 import { UnlockConfirmModal } from './components/UnlockConfirmModal';
 import { UserMenu } from './components/UserMenu';
@@ -109,6 +110,29 @@ export default function App() {
   // re-evaluates and starts the sync engine. The provider id is only persisted
   // AFTER the token exchange finishes, which is later than the first boot run.
   const [driveHandshakeAt, setDriveHandshakeAt] = useState(0);
+
+  // Short officer share link (`?o=<43 chars>`): the record lives server-side,
+  // so it has to be fetched before it can be rendered. Cleared whenever the
+  // token changes so a new link never shows the previous report.
+  const shortOfficerToken = readShortToken(locationHref);
+  const [officerResolved, setOfficerResolved] = useState<ResolvedOfficerLink | null>(null);
+  const [officerPending, setOfficerPending] = useState(false);
+  useEffect(() => {
+    if (!shortOfficerToken) {
+      setOfficerResolved(null);
+      setOfficerPending(false);
+      return;
+    }
+    let cancelled = false;
+    setOfficerPending(true);
+    setOfficerResolved(null);
+    resolveOfficerToken(shortOfficerToken).then(result => {
+      if (cancelled) return;
+      setOfficerResolved(result);
+      setOfficerPending(false);
+    });
+    return () => { cancelled = true; };
+  }, [shortOfficerToken]);
 
   // Optional cloud connection (Google Drive today). The app is fully
   // functional without it; this only enables backup + device sync. The flag
@@ -1374,10 +1398,25 @@ export default function App() {
   // A QR-scanned "?o=..." payload renders a read-only, large-type copy
   // of the 15-day record. It is checked BEFORE the auth gate on purpose: the
   // officer's phone has no session and must never see the sign-in screen.
+  //
+  // Two link formats reach this point. A short token (the current format, a
+  // few dozen characters) has to be fetched from the server, so it resolves
+  // asynchronously; the older inline token still carries its own payload and
+  // decodes synchronously. `officerPending` covers only the short form.
   const officerLink = readOfficerLink(locationHref);
   if (officerLink) {
     if ('error' in officerLink) return <OfficerLinkError error={officerLink.error} />;
     return <OfficerReport report={officerLink.report} />;
+  }
+
+  if (shortOfficerToken) {
+    if (officerPending) return <OfficerLinkLoading />;
+    if (officerResolved?.kind === 'report') return <OfficerReport report={officerResolved.report} />;
+    if (officerResolved?.kind === 'expired') return <OfficerLinkError expired error="" />;
+    if (officerResolved?.kind === 'unavailable') {
+      return <OfficerLinkError error={officerResolved.error} />;
+    }
+    return <OfficerLinkLoading />;
   }
 
   // --- Auth gate ---------------------------------------------------------

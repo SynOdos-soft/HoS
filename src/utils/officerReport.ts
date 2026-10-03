@@ -138,6 +138,69 @@ export const decodeGrid = (encoded: string): Status[] => {
   return grid;
 };
 
+/**
+ * Fixed-width fallback grid encoding: two bits per quarter-hour slot.
+ *
+ * Run-length encoding is compact for the usual shapes (long blocks of off-duty
+ * around a drive) but degrades badly on fragmented days — short alternating runs
+ * make every run cost ~4 characters, and a 15-day report of those measured
+ * 3,975 characters, past the QR ceiling with no way to shrink it further.
+ *
+ * Two bits per slot is constant regardless of data: 96 slots = 192 bits = 24
+ * bytes = 32 base64 characters per day, and 480 for the whole report. A day's
+ * grid is emitted packed whenever RLE would exceed {@link PACKED_THRESHOLD},
+ * which makes the total size bounded rather than data-dependent.
+ */
+const PACKED_THRESHOLD = 40;
+
+/** One character per 4 slots (8 slots per 2 base64 chars). */
+const encodeGridPacked = (grid: Status[]): string => {
+  const normalized = normalizeGrid(grid);
+  // 96 slots x 2 bits = 192 bits = exactly 24 bytes, so no padding is needed.
+  const bytes = new Uint8Array(24);
+  for (let slot = 0; slot < 96; slot++) {
+    const index = VALID_STATUSES.indexOf(normalized[slot]);
+    const value = index < 0 ? 0 : index;
+    const byte = slot >> 2;          // 4 slots per byte
+    const shift = 6 - 2 * (slot % 4); // high bits first, stable decode order
+    bytes[byte] |= value << shift;
+  }
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  // base64 over raw bytes, NOT toBase64Url: that helper UTF-8 encodes, which
+  // would expand every byte above 0x7f into two bytes and defeat the packing.
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+const decodeGridPacked = (encoded: string): Status[] => {
+  const grid: Status[] = [];
+  try {
+    const binary = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'));
+    for (let slot = 0; slot < 96; slot++) {
+      const char = binary.charCodeAt(slot >> 2);
+      if (Number.isNaN(char)) break;
+      const shift = 6 - 2 * (slot % 4);
+      const value = (char >> shift) & 0b11;
+      grid.push(VALID_STATUSES[value] || 'off-duty');
+    }
+  } catch {
+    // Fall through to the all-off-duty padding below.
+  }
+  while (grid.length < 96) grid.push('off-duty');
+  return grid;
+};
+
+/**
+ * Pick the cheaper of the two grid encodings.
+ *
+ * A leading "!" marks the packed form so the decoder knows which to use. Both
+ * stay ASCII and URL-safe, so a packed token pastes and scans like any other.
+ */
+export const encodeGridCompact = (grid: Status[]): string => {
+  const rle = encodeGrid(grid);
+  return rle.length <= PACKED_THRESHOLD ? rle : `!${encodeGridPacked(grid)}`;
+};
+
 // --- Payload encoding -----------------------------------------------------
 
 /**
@@ -197,7 +260,7 @@ const serialize = (report: OfficerReport): string => {
 
   const records = report.days.map(day => {
     if (!day.recorded) return 'x';
-    const fields = [`g:${encodeGrid(day.grid)}`];
+    const fields = [`g:${encodeGridCompact(day.grid)}`];
     if (day.remarks) fields.push(`r:${enc(day.remarks)}`);
     if (day.startOdometer) fields.push(`s:${enc(day.startOdometer)}`);
     if (day.endOdometer) fields.push(`e:${enc(day.endOdometer)}`);
@@ -310,10 +373,12 @@ export const decodeOfficerPayload = (payload: string): OfficerReport => {
     const date = format(addDays(startDate, index), 'yyyy-MM-dd');
     if (!record.g) return emptyDay(date);
     const km = Number(record.k);
+    // "!" marks the fixed-width packed encoding written by encodeGridCompact.
+    const grid = record.g.startsWith('!') ? decodeGridPacked(record.g.slice(1)) : decodeGrid(record.g);
     return {
       date,
       recorded: true,
-      grid: decodeGrid(record.g),
+      grid,
       remarks: dec(record.r || '').slice(0, MAX_REMARKS * 2),
       startOdometer: dec(record.s || ''),
       endOdometer: dec(record.e || ''),

@@ -18,6 +18,24 @@ interface PreferencesMenuProps {
   {
     version: APP_VERSION,
     date: '2026-10-02',
+    features: [
+      'The handoff QR code now points at a short link — about 70 characters instead of over a thousand — so it scans instantly off a phone screen at a roadside stop.',
+      'Handoff links now expire 7 days after you create them, and only your most recent one stays live. Creating a new link retires the old one.',
+      'The officer\u2019s record now reads exactly like your own Inspection screen: the same day cards, the same 24-hour grid, the same totals and the same tags, in the same places, so nobody has to learn a second layout.',
+      'The officer\u2019s screen states plainly that it is a read-only copy, and says when the record was generated.'
+    ],
+    fixes: [
+      'Fixed the address bar showing a stray "#" at the end of the app\u2019s web address after signing in.',
+      'Fixed the QR code refusing to generate on a full 14-day record — it could report "Report is too large for a QR code" on a fragmented grid. Records are now packed before encoding, so every cycle fits.',
+      'The QR code is no longer built on the spot while offline. Links are now created on the server; if that is not possible you are told plainly and pointed at the printable PDF rather than being shown a link that will not open.',
+      'Labels across the app are no longer in capital letters. The menu headings, the "Weekly record" heading, the daily totals tiles, the audit table headings, the status rows beside the grid and the Inspection tags (Remarks, Odometer, CMV plate, …) are now written the way you would write them, in both English and French.',
+      'The "Today" marker and the metadata tags were re-sized so they stay readable now that they are no longer in capitals.',
+      'The tab strips on the Account and System Settings screens were sitting flush against the title above them; they now have breathing room.'
+    ]
+  },
+  {
+    version: '0.35.0',
+    date: '2026-10-02',
     fixes: [
       'The Account screen now follows your language all the way through: the four tabs (Account, Personal Info, My Vehicles, Operator Companies), every field label, the occupation checkboxes, the empty-state hints, the button tooltips and the placeholders.',
       'Backup and cloud messages are translated too — "Backup Now", "Restore Data", "Reconnect & Retry", the encryption PIN warning and every success or failure message, including "Sync failed:" and "Restore failed:" with the reason.',
@@ -668,7 +686,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.security && v.security.length > 0 && (
                         <div style={{ marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>{t('securityHeading')}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)' }}>{t('securityHeading')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.security.map((item, j) => <li key={j}>{item}</li>)}
                           </ul>
@@ -677,7 +695,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.ui && v.ui.length > 0 && (
                         <div style={{ marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>{t('uiChangesHeading')}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)' }}>{t('uiChangesHeading')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.ui.map((item, j) => <li key={j}>{item}</li>)}
                           </ul>
@@ -686,7 +704,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.features && v.features.length > 0 && (
                         <div style={{ marginBottom: '0.5rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-green)', textTransform: 'uppercase' }}>{t('whatChanged')}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-green)' }}>{t('whatChanged')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.features.map((feat, j) => <li key={j}>{feat}</li>)}
                           </ul>
@@ -695,7 +713,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.fixes && v.fixes.length > 0 && (
                         <div>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>{t('fixes')}</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-blue)' }}>{t('fixes')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.fixes.map((fix, j) => <li key={j}>{fix}</li>)}
                           </ul>

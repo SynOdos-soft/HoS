@@ -59,6 +59,7 @@ export const translations = {
 
     // ---- Grid / duty status ----
     dutyStatusGrid: 'Duty status grid, scroll horizontally to view all hours',
+    gridTimeLabel: 'Time',
     dutyStatusPaintMode: 'Duty status paint mode',
     offDuty: 'Off-Duty',
     onDuty: 'On-Duty',
@@ -130,7 +131,7 @@ export const translations = {
     fifteenDayRecord: '15-Day Record',
     handoff: 'Handoff',
     handoffTitle: 'Hand over your 15-day record',
-    handoffBody: 'Show this on screen, or print the roadside PDF. The officer can scan the code to open the same record read-only on their own phone.',
+    handoffBody: 'Show this on screen, or print the roadside PDF. The officer can scan the code to open the same record read-only on their own phone. Sharing the link needs internet and the link stops working after 7 days.',
     scanToOpen: 'Scan to open read-only',
     copyLink: 'Copy link',
     linkCopied: 'Link copied',
@@ -138,8 +139,9 @@ export const translations = {
     roadsidePdf: 'Roadside PDF',
     closeHandoff: 'Close',
     localAddressWarning: 'You are viewing this on a computer. The QR code only works for the officer if this page is open on a phone connected to the internet.',
-    officerReadOnly: 'READ ONLY',
+    
     officerModeBanner: 'Read-only inspection record',
+    officerGeneratedAt: 'Inspection record generated',
     officerNoRecord: 'No log recorded',
     officerDaysRecorded: 'Days recorded',
     officerNoEntries: 'No entries recorded for this day.',
@@ -147,6 +149,12 @@ export const translations = {
     backToApp: 'Back to the app',
     invalidHandoffLink: 'This link could not be opened',
     invalidHandoffBody: 'The record link appears to be damaged or incomplete. Ask the driver to share it again.',
+    expiredHandoffLink: 'This link has expired',
+    expiredHandoffBody: 'Inspection links are valid for 7 days. Ask the driver to share a fresh one from the handoff screen.',
+    officerLoadingRecord: 'Loading the record…',
+    preparingLink: 'Preparing a secure link…',
+    linkExpiresInDays: 'This link expires in {n} days.',
+    linkUnavailableUsePdf: 'The shareable link needs internet, and it could not be created. Print the roadside PDF below and hand that over instead — it works with no signal and does not expire.',
 
     // ---- Audit ----
     auditTitle: 'Audit trail',
@@ -352,7 +360,7 @@ export const translations = {
     factHomeTerminal: 'Home terminal',
     factCoDriver: 'Co-driver',
     factGenerated: 'Generated',
-    todayPill: 'TODAY',
+    todayPill: 'Today',
 
     // ---- Account hub (UserMenu) ----
     tabAccount: 'Account',
@@ -458,14 +466,14 @@ export const translations = {
     placeholderCityProvince: 'City, Province',
 
     // ---- Inspection metadata tags & diagnostics ----
-    tagRemarks: 'REMARKS',
-    tagOdometer: 'ODOMETER',
-    tagCmvPlate: 'CMV PLATE',
-    tagTrailer: 'TRAILER',
-    tagCoDriver: 'CO-DRIVER',
-    tagHomeTerminal: 'HOME TERMINAL',
-    tagOperator: 'OPERATOR',
-    tagMainOffice: 'MAIN OFFICE',
+    tagRemarks: 'Remarks',
+    tagOdometer: 'Odometer',
+    tagCmvPlate: 'CMV plate',
+    tagTrailer: 'Trailer',
+    tagCoDriver: 'Co-driver',
+    tagHomeTerminal: 'Home terminal',
+    tagOperator: 'Operator',
+    tagMainOffice: 'Main office',
     logDate: 'Log Date',
     showRoadsideDiagnostics: 'Show Roadside Diagnostics',
     hideDiagnostics: 'Hide Diagnostics',
@@ -557,6 +565,7 @@ export const translations = {
 
     // ---- Grid / duty status ----
     dutyStatusGrid: 'Grille des états de service, faites défiler horizontalement pour voir toutes les heures',
+    gridTimeLabel: 'Heure',
     dutyStatusPaintMode: 'Mode de peinture des états de service',
     offDuty: 'Hors service',
     onDuty: 'En service',
@@ -628,7 +637,7 @@ export const translations = {
     fifteenDayRecord: 'Relevé sur 15 jours',
     handoff: 'Remise',
     handoffTitle: 'Remettez votre relevé sur 15 jours',
-    handoffBody: 'Affichez-le à l’écran ou imprimez le PDF pour inspection. L’agent peut scanner le code pour consulter le même relevé en lecture seule sur son téléphone.',
+    handoffBody: 'Affichez-le à l’écran ou imprimez le PDF pour inspection. L’agent peut scanner le code pour consulter le même relevé en lecture seule sur son téléphone. Le partage du lien nécessite Internet et le lien cesse de fonctionner après 7 jours.',
     scanToOpen: 'Scanner pour ouvrir en lecture seule',
     copyLink: 'Copier le lien',
     linkCopied: 'Lien copié',
@@ -636,8 +645,9 @@ export const translations = {
     roadsidePdf: 'PDF inspection',
     closeHandoff: 'Fermer',
     localAddressWarning: 'Vous consultez cette page sur un ordinateur. Le code QR ne fonctionne pour l’agent que si cette page est ouverte sur un téléphone connecté à Internet.',
-    officerReadOnly: 'LECTURE SEULE',
+    
     officerModeBanner: 'Relevé d’inspection en lecture seule',
+    officerGeneratedAt: 'Relevé d’inspection généré le',
     officerNoRecord: 'Aucune entrée au registre',
     officerDaysRecorded: 'Journées enregistrées',
     officerNoEntries: 'Aucune entrée enregistrée pour cette journée.',
@@ -645,6 +655,12 @@ export const translations = {
     backToApp: 'Retour à l’application',
     invalidHandoffLink: 'Ce lien n’a pas pu être ouvert',
     invalidHandoffBody: 'Le lien du relevé semble endommagé ou incomplet. Demandez au conducteur de le partager à nouveau.',
+    expiredHandoffLink: 'Ce lien a expiré',
+    expiredHandoffBody: 'Les liens d’inspection sont valides pendant 7 jours. Demandez au conducteur d’en partager un nouveau depuis l’écran de remise.',
+    officerLoadingRecord: 'Chargement du relevé…',
+    preparingLink: 'Préparation d’un lien sécurisé…',
+    linkExpiresInDays: 'Ce lien expire dans {n} jours.',
+    linkUnavailableUsePdf: 'Le lien partageable nécessite Internet et n’a pas pu être créé. Imprimez le PDF d’inspection ci-dessous et remettez-le plutôt — il fonctionne sans réseau et n’expire pas.',
 
     // ---- Audit ----
     auditTitle: 'Piste d’audit',
@@ -850,7 +866,7 @@ export const translations = {
     factHomeTerminal: 'Terminal familial',
     factCoDriver: 'Co-conducteur',
     factGenerated: 'Généré le',
-    todayPill: 'AUJOURD’HUI',
+    todayPill: 'Aujourd’hui',
 
     // ---- Account hub (UserMenu) ----
     tabAccount: 'Compte',
@@ -956,14 +972,14 @@ export const translations = {
     placeholderCityProvince: 'Ville, Province',
 
     // ---- Inspection metadata tags & diagnostics ----
-    tagRemarks: 'REMARQUES',
-    tagOdometer: 'ODOMÈTRE',
-    tagCmvPlate: 'PLAQUE CMV',
-    tagTrailer: 'REMORQUE',
-    tagCoDriver: 'CO-CONDUCTEUR',
-    tagHomeTerminal: 'TERMINAL',
-    tagOperator: 'TRANSPORTEUR',
-    tagMainOffice: 'SIÈGE SOCIAL',
+    tagRemarks: 'Remarques',
+    tagOdometer: 'Odomètre',
+    tagCmvPlate: 'Plaque CMV',
+    tagTrailer: 'Remorque',
+    tagCoDriver: 'Co-conducteur',
+    tagHomeTerminal: 'Terminal',
+    tagOperator: 'Transporteur',
+    tagMainOffice: 'Siège social',
     logDate: 'Date du journal',
     showRoadsideDiagnostics: 'Afficher le diagnostic d’inspection',
     hideDiagnostics: 'Masquer le diagnostic',

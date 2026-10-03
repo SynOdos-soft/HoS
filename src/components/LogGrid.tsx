@@ -93,11 +93,10 @@ export const LogGrid: React.FC<LogGridProps> = ({ grid, preferences, date }) => 
             display: 'flex',
             alignItems: 'center',
             paddingLeft: '8px',
-            fontSize: '9px',
-            fontWeight: 'bold',
+            fontSize: '10px',
+            fontWeight: 600,
             color: 'var(--text-primary)',
-            borderBottom: '1px solid var(--glass-border)',
-            textTransform: 'uppercase'
+            borderBottom: '1px solid var(--glass-border)'
           }}>
             {STATUS_LABEL_KEYS[status] ? t(STATUS_LABEL_KEYS[status]) : status.replace('-', ' ')}
           </div>

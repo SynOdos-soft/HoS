@@ -5,7 +5,15 @@ what exists today: weekly log grid, roadside inspection view, audit trail with r
 codes, auto-locking, PDF exports, encrypted Google Drive sync, saved vehicles and
 operator companies, presets.
 
-_Last updated: 2026-10-02 (v0.35.0)_
+_Last updated: 2026-10-02 (v0.35.5)_
+
+> ✅ Done in **v0.35.5**: **Short, expiring handoff links** — the officer QR now points at a
+> ~70-character link instead of a thousand, links expire after 7 days with one live report per
+> driver, the QR is no longer generated offline (a failed publish points at the PDF instead), and
+> fragmented 14-day grids that used to overflow the QR encoder are packed before encoding. The
+> officer's record was rebuilt on the driver's own Inspection layout, and capital-letter labels
+> across the app (menu headings, eyebrow, totals tiles, audit headers, status rows, inspection
+> tags) are now sentence case in both English and French.
 
 > ✅ Done in **v0.35.0**: **Translation completeness** — the last English-only surfaces now
 > follow the language setting: the whole Account hub (tabs, personal info, vehicles,
