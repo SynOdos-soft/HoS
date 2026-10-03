@@ -5,7 +5,18 @@ what exists today: weekly log grid, roadside inspection view, audit trail with r
 codes, auto-locking, PDF exports, encrypted Google Drive sync, saved vehicles and
 operator companies, presets.
 
-_Last updated: 2026-10-02 (v0.32.0)_
+_Last updated: 2026-10-02 (v0.35.0)_
+
+> ✅ Done in **v0.35.0**: **Translation completeness** — the last English-only surfaces now
+> follow the language setting: the whole Account hub (tabs, personal info, vehicles,
+> operator companies, backup/restore messages, connection health), the Inspection card
+> metadata tags and diagnostics panel, the crash-recovery screen, the subscription
+> screen, the update banner, and the Settings → Trucking / Install / Version panels.
+
+> ✅ Done in **v0.33.0**: **French language** — the full driver-facing UI is translated
+> (Settings → General → Language). Translations are AI-generated and the app says so, with
+> the English text flagged as the official record. Duty-status codes (OFF, S/D, ON, Y, H) stay
+> untranslated on purpose.
 
 > ✅ Done in **v0.32.0**: **Per-account data ownership** — local weeks, preferences, vehicles,
 > driver details and the pending-sync queue are scoped to the signed-in account, so a second

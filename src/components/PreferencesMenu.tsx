@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Preferences, APP_VERSION } from '../types';
-import { t } from '../utils/i18n';
 import { Settings, Save, Download, Info, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { useDragScroll } from '../lib/useDragScroll';
+import { t as translateKey, LANGUAGES, isTranslated } from '../utils/i18n';
 
 interface PreferencesMenuProps {
   preferences: Preferences;
@@ -14,10 +14,41 @@ interface PreferencesMenuProps {
   initialTab?: 'general' | 'trucking' | 'install' | 'version';
   onCheckForUpdates?: () => void;
   updateCheckStatus?: 'idle' | 'checking' | 'up-to-date';
-}
-
-const VERSIONS = [{
+}const VERSIONS = [
+  {
     version: APP_VERSION,
+    date: '2026-10-02',
+    fixes: [
+      'The Account screen now follows your language all the way through: the four tabs (Account, Personal Info, My Vehicles, Operator Companies), every field label, the occupation checkboxes, the empty-state hints, the button tooltips and the placeholders.',
+      'Backup and cloud messages are translated too — "Backup Now", "Restore Data", "Reconnect & Retry", the encryption PIN warning and every success or failure message, including "Sync failed:" and "Restore failed:" with the reason.',
+      'The connection health card is translated: the status badge (On, Syncing, Checking, Offline, Error), the index and preferences file rows, and the "Last error:" line.',
+      'Licence, medical exam and first-aid expiries now read "5d left" or "EXPIRED 3d ago" in your language instead of English.',
+      'Your saved occupations (Truck Driver, Bus Driver, …) are now shown in your language on the Account screen, while keeping the same stored values so nothing is lost when you switch back.',
+      'The Inspection screen card tags are translated: REMARKS, ODOMETER, CMV PLATE, TRAILER, CO-DRIVER, HOME TERMINAL, OPERATOR and MAIN OFFICE.',
+      'The roadside diagnostics panel is translated, including the MATCHED / NO MATCH markers and the "Log Date" column heading.',
+      'The crash recovery screen, the subscription screen and the app-update banner now follow your language instead of always appearing in English.',
+      'The duty-status row captions down the left edge of the grid (Off-Duty, Driving, On-Duty, Sleeper) are translated. The codes inside the cells (OFF, S/D, ON, Y, H) stay in English on purpose — they must match your printed log exactly.',
+      'Fixed the "Show Co-Driver(s)", "Show Trailer Plate", "Show Exempt Hrs" and "Show Sleeper Row" switches in Settings → Trucking staying in English, along with the Install and Version History panels.',
+      'Fixed tooltips and hover labels on the dashboard week list and the duty-status totals row still reading "Active Week (Edit)", "Completed Week (View)", "Export PDF" and "Sleeper Berth" in English.'
+    ]
+  },
+  {
+    version: '0.33.0',
+    date: '2026-10-02',
+    features: [
+      'French (Français) is now available in Settings → General → Language, covering the log book, daily logger, totals, inspection, the roadside handoff, audit trail, account and sign-in screens.',
+      'Dates follow your language too — the day and month names in headings and in the officer\'s 15-day record now read in French instead of English.',
+      'Every non-English screen carries a clear notice: the translation is AI-generated and the English version is the official record for compliance purposes.',
+      'Duty-status codes inside the grid (OFF, S/D, ON, Y, H) are deliberately left in English — they are the regulatory abbreviations that must match your printed log exactly.',
+      'Language switching is instant and remembers your choice per account, so a French driver\'s setting is not imposed on the next person to use the device.'
+    ],
+    fixes: [
+      'Fixed roughly 180 user-facing strings that were hardcoded to English and ignored the language setting.',
+      'Fixed the language picker not matching the interface language after switching, and the page title and browser language not following it either.'
+    ]
+  },
+  {
+    version: '0.32.0',
     date: '2026-10-02',
     features: [
       'Your log book now belongs to your account instead of to the phone. Signing in with a different account on a shared device no longer shows the previous driver\'s weeks — each account sees only its own record.',
@@ -421,6 +452,8 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   onCheckForUpdates, updateCheckStatus = 'idle'
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'trucking' | 'install' | 'version'>(initialTab || 'general');
+  // Bound to the saved language; kept in sync with setI18nLanguage by App.
+  const t = (key: Parameters<typeof translateKey>[0]) => translateKey(key, preferences.language);
   const tabRow = useDragScroll<HTMLDivElement>();
   const toggleBoolean = (key: keyof Preferences) => {
     setPreferences({ ...preferences, [key]: !preferences[key] });
@@ -431,10 +464,10 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
   };
 
   const tabs = [
-    { id: 'general', label: 'General', icon: Settings },
-    { id: 'trucking', label: 'Trucking Features', icon: SlidersHorizontal },
-    ...(!isStandalone ? [{ id: 'install', label: 'Install', icon: Download }] : []),
-    { id: 'version', label: 'Version', icon: Info },
+    { id: 'general', label: t('generalTab'), icon: Settings },
+    { id: 'trucking', label: t('truckingFeatures'), icon: SlidersHorizontal },
+    ...(!isStandalone ? [{ id: 'install', label: t('install'), icon: Download }] : []),
+    { id: 'version', label: t('version'), icon: Info },
   ] as const;
 
   return (
@@ -467,41 +500,45 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {activeTab === 'general' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>General Settings</h3>
+                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>{t('generalSettings')}</h3>
                 <div className="input-group">
-                  <label>Language / Langue</label>
+                  <label>{t('language')}</label>
                   <select value={preferences.language} onChange={(e) => setString('language', e.target.value)}>
-                    <option value="en">English</option>
-                    <option value="fr">Français</option>
-                    <option value="el">Ελληνικά</option>
+                    {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
                   </select>
                 </div>
+                {/* Translation notice: shown only when the UI is not English. */}
+                {isTranslated(preferences.language) && (
+                  <p className="translation-notice">
+                    <strong>{t('aiTranslationShort')}.</strong> {t('aiTranslationNotice')}
+                  </p>
+                )}
                 <div className="input-group">
-                  <label>Theme</label>
+                  <label>{t('theme')}</label>
                   <select value={preferences.theme} onChange={(e) => setString('theme', e.target.value)}>
-                    <option value="dark">Dark Mode</option>
-                    <option value="light">Light Mode</option>
+                    <option value="dark">{t('darkMode')}</option>
+                    <option value="light">{t('lightMode')}</option>
                   </select>
                 </div>
                 <div className="input-group">
-                  <label>Time Format (Grid)</label>
+                  <label>{t('timeFormat')}</label>
                   <select value={preferences.timeFormat} onChange={(e) => setString('timeFormat', e.target.value)}>
-                    <option value="12h">12-Hour (AM/PM)</option>
-                    <option value="24h">24-Hour</option>
+                    <option value="12h">{t('timeFormat12h')}</option>
+                    <option value="24h">{t('timeFormat24h')}</option>
                   </select>
                 </div>
                 <div className="input-group">
-                  <label>Week Starts On</label>
+                  <label>{t('weekStartsOn')}</label>
                   <select value={preferences.weekStartsOn} onChange={(e) => setPreferences({ ...preferences, weekStartsOn: Number(e.target.value) as 0 | 1 })}>
-                    <option value={1}>Monday</option>
-                    <option value={0}>Sunday</option>
+                    <option value={1}>{t('monday')}</option>
+                    <option value={0}>{t('sunday')}</option>
                   </select>
                 </div>
                 <div className="input-group">
-                  <label>Default Cycle</label>
+                  <label>{t('defaultCycle')}</label>
                   <select value={preferences.defaultCycle || '7-Day'} onChange={(e) => setString('defaultCycle', e.target.value)}>
-                    <option value="7-Day">7-Day</option>
-                    <option value="14-Day">14-Day</option>
+                    <option value="7-Day">{t('cycle7Day')}</option>
+                    <option value="14-Day">{t('cycle14Day')}</option>
                   </select>
                 </div>
 
@@ -509,36 +546,36 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.autoSave} onChange={() => toggleBoolean('autoSave')} />
-                  Enable Auto-Save
+                  {t('autoSave')}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.showSameVehicle} onChange={() => toggleBoolean('showSameVehicle')} />
-                  Show additional vehicles
+                  {t('showAdditionalVehicles')}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.showTimestamps} onChange={() => toggleBoolean('showTimestamps')} />
-                  {t('showTimestamps', preferences.language) || 'Show Timestamps in Cells'}
+                  {t('showTimestamps')}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.showDailyTotals} onChange={() => toggleBoolean('showDailyTotals')} />
-                  Show Daily Totals Cards
+                  {t('showDailyTotalsCards')}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.hideEarlyHours} onChange={() => toggleBoolean('hideEarlyHours')} />
-                  Hide early Off-Duty hours on mobile (removes from grid)
+                  {t('hideEarlyHoursNote')}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={preferences.collapseEarlyHours} onChange={() => toggleBoolean('collapseEarlyHours')} />
-                  Collapse early Off-Duty hours on mobile (renders compact rows)
+                  {t('collapseEarlyHoursNote')}
                 </label>
               </div>
             )}
 
             {activeTab === 'trucking' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Trucking Features</h3>
+                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>{t('truckingFeatures')}</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
-                  Toggle visibility for specific HOS fields and features on the dashboard.
+                  {t('truckingFeaturesBody')}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
@@ -547,7 +584,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                       checked={preferences.showCoDrivers}
                       onChange={() => toggleBoolean('showCoDrivers')}
                     />
-                    Show Co-Driver(s)
+                    {t('showCoDrivers')}
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input
@@ -555,7 +592,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                       checked={preferences.showTrailerPlate}
                       onChange={() => toggleBoolean('showTrailerPlate')}
                     />
-                    Show Trailer Plate
+                    {t('showTrailerPlate')}
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input
@@ -563,7 +600,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                       checked={preferences.showExempt}
                       onChange={() => toggleBoolean('showExempt')}
                     />
-                    Show Exempt Hrs
+                    {t('showExemptHrs')}
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input
@@ -571,7 +608,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                       checked={preferences.showSleeper}
                       onChange={() => toggleBoolean('showSleeper')}
                     />
-                    Show Sleeper Row
+                    {t('showSleeperRow')}
                   </label>
                 </div>
               </div>
@@ -582,20 +619,20 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
             {activeTab === 'install' && !isStandalone && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Installation</h3>
+                <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>{t('install')}</h3>
                 {installPrompt ? (
                   <button className="btn-primary" onClick={onInstall} style={{ width: '100%', justifyContent: 'center' }}>
-                    <Download size={18} /> Install App
+                    <Download size={18} /> {t('installApp')}
                   </button>
                 ) : (
                   <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                    <p style={{ marginBottom: '0.5rem' }}>To install for offline use:</p>
+                    <p style={{ marginBottom: '0.5rem' }}>{t('installOfflineIntro')}</p>
                     <ol style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>
-                      <li>Open browser menu</li>
-                      <li>Select <b>"Add to Home Screen"</b> or <b>"Install App"</b></li>
+                      <li>{t('installStep1')}</li>
+                      <li>{t('installStep2')}</li>
                     </ol>
                     <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                      Note: Installation requires a secure connection (HTTPS) or localhost.
+                      {t('installNote')}
                     </p>
                   </div>
                 )}
@@ -605,7 +642,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
             {activeTab === 'version' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-                  <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>Version History</h3>
+                  <h3 style={{ margin: 0, color: 'var(--accent-blue)' }}>{t('versionHistory')}</h3>
                   {onCheckForUpdates && (
                     <button
                       className="btn-secondary"
@@ -614,7 +651,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
                       style={{ padding: '0.375rem 0.75rem', fontSize: '0.8rem', borderRadius: '6px', gap: '0.375rem', flexShrink: 0 }}
                     >
                       <RefreshCw size={14} style={updateCheckStatus === 'checking' ? { animation: 'spin 1s linear infinite' } : undefined} />
-                      {updateCheckStatus === 'checking' ? 'Checking…' : 'Check for updates'}
+                      {updateCheckStatus === 'checking' ? t('checkingEllipsis') : t('checkForUpdates')}
                     </button>
                   )}
                 </div>
@@ -631,7 +668,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.security && v.security.length > 0 && (
                         <div style={{ marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>Security</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>{t('securityHeading')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.security.map((item, j) => <li key={j}>{item}</li>)}
                           </ul>
@@ -640,7 +677,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.ui && v.ui.length > 0 && (
                         <div style={{ marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>UI Changes</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)', textTransform: 'uppercase' }}>{t('uiChangesHeading')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.ui.map((item, j) => <li key={j}>{item}</li>)}
                           </ul>
@@ -649,7 +686,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.features && v.features.length > 0 && (
                         <div style={{ marginBottom: '0.5rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-green)', textTransform: 'uppercase' }}>Features</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-green)', textTransform: 'uppercase' }}>{t('whatChanged')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.features.map((feat, j) => <li key={j}>{feat}</li>)}
                           </ul>
@@ -658,7 +695,7 @@ export const PreferencesMenu: React.FC<PreferencesMenuProps> = ({
 
                       {v.fixes && v.fixes.length > 0 && (
                         <div>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>Fixes</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>{t('fixes')}</span>
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {v.fixes.map((fix, j) => <li key={j}>{fix}</li>)}
                           </ul>

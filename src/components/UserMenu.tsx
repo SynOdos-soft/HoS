@@ -10,6 +10,7 @@ import { useSyncStatus } from '../lib/useSyncStatus';
 import { syncNow } from '../utils/driveSync';
 import { getActiveProvider, setActiveProviderId, type CloudProvider } from '../utils/cloudProviders';
 import { googleDriveProvider, DRIVE_HANDSHAKE_ERROR_KEY } from '../utils/googleDriveProvider';
+import { useT, type TranslationKey } from '../utils/i18n';
 import { getDriveHealth, type DriveHealth } from '../utils/driveStore';
 import { formatDateIso, formatDateTimeIso } from '../utils/formatDate';
 
@@ -20,27 +21,30 @@ interface UserMenuProps {
   logs?: WeeklyLog[];
 }
 
-const OCCUPATIONS = [
-  'Bus Driver',
-  'School Bus Driver',
-  'Truck Driver',
-  'Delivery Driver',
-  'Ridesharing Driver',
-  'Taxi Driver',
-  'Chauffeur',
-  'Courier',
-  'Heavy Equipment Operator'
-];
+// [stored English value, translation key]. The stored value is persisted in the
+// driver profile, so it must never change — only the displayed label is localized.
+const OCCUPATIONS: ReadonlyArray<readonly [string, TranslationKey]> = [
+  ['Bus Driver', 'occBusDriver'],
+  ['School Bus Driver', 'occSchoolBusDriver'],
+  ['Truck Driver', 'occTruckDriver'],
+  ['Delivery Driver', 'occDeliveryDriver'],
+  ['Ridesharing Driver', 'occRidesharingDriver'],
+  ['Taxi Driver', 'occTaxiDriver'],
+  ['Chauffeur', 'occChauffeur'],
+  ['Courier', 'occCourier'],
+  ['Heavy Equipment Operator', 'occHeavyEquipment'],
+] as const;
 
 const TABS = [
-  { id: 'account', label: 'Account', icon: ShieldCheck },
-  { id: 'personal', label: 'Personal Info', icon: User },
-  { id: 'vehicles', label: 'My Vehicles', icon: Truck },
-  { id: 'companies', label: 'Operator Companies', icon: Building2 },
+  { id: 'account', label: 'tabAccount', icon: ShieldCheck },
+  { id: 'personal', label: 'tabPersonal', icon: User },
+  { id: 'vehicles', label: 'tabMyVehicles', icon: Truck },
+  { id: 'companies', label: 'tabCompanies', icon: Building2 },
 ] as const;
 
 export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences, onClose, logs = [] }) => {
   const { user, daysRemaining, validateSession } = useAuth();
+  const t = useT();
   const { state: syncState, message: syncErrorMessage, online, lastSyncedAt } = useSyncStatus();
   const [syncingNow, setSyncingNow] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState(false);
@@ -71,7 +75,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     setSyncingNow(true);
     const res = await syncNow();
     setSyncingNow(false);
-    setSyncNowMsg(res.ok ? 'Up to date.' : (res.error || 'Sync failed.'));
+    setSyncNowMsg(res.ok ? t('upToDateShort') : (res.error || t('syncFailedShort')));
     if (res.ok) window.setTimeout(() => setSyncNowMsg(null), 4000);
   };
 
@@ -87,7 +91,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     } catch (e) {
       console.error('[cloud] connect failed', e);
       setSyncNowMsg(
-        e instanceof Error ? e.message : 'Could not start Google sign-in. Check your connection and try again.'
+        e instanceof Error ? e.message : t('couldNotStartSignIn')
       );
     } finally {
       setConnectingProvider(false);
@@ -98,7 +102,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     await p.disconnect();
     setActiveProviderId(null);
     setVerifiedConnected(false);
-    setSyncNowMsg(`${p.label} disconnected. Local data remains; backup & device sync paused.`);
+    setSyncNowMsg(`${p.label} ${t('providerDisconnected')}`);
   };
 
   const handleRevalidate = async () => {
@@ -106,7 +110,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     setSyncingNow(true);
     const res = await validateSession();
     setSyncingNow(false);
-    setSyncNowMsg(res.ok ? 'Session renewed.' : (res.error || 'Could not reach the server.'));
+    setSyncNowMsg(res.ok ? t('sessionRenewed') : (res.error || t('couldNotReachServer')));
     if (res.ok) window.setTimeout(() => setSyncNowMsg(null), 4000);
   };
 
@@ -123,9 +127,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   };
 
   const credentials = [
-    { label: 'Driver license', expiry: preferences.userProfile?.licenseExpiry },
-    { label: 'Medical exam', expiry: preferences.userProfile?.medicalExpiry },
-    { label: 'First aid', expiry: preferences.userProfile?.firstAidExpiry },
+    { label: t('credDriverLicense'), expiry: preferences.userProfile?.licenseExpiry },
+    { label: t('credMedicalExam'), expiry: preferences.userProfile?.medicalExpiry },
+    { label: t('credFirstAid'), expiry: preferences.userProfile?.firstAidExpiry },
   ]
     .map(c => ({ ...c, days: daysUntil(c.expiry || '') }))
     .filter(c => c.days !== null)
@@ -188,7 +192,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       };
       setPreferences(nextPrefs);
       setSyncStatus('idle');
-      setSyncMessage('Google connected successfully!');
+      setSyncMessage(t('googleConnected'));
       
       // Auto-resume action with fresh token
       if (pendingSyncAction === 'backup') {
@@ -201,7 +205,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
     },
     onError: () => {
       setSyncStatus('error');
-      setSyncMessage('Google Re-Authentication Failed');
+      setSyncMessage(t('googleReauthFailed'));
     }
   });
 
@@ -214,7 +218,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   const runBackupWithToken = async (token: string, currentPrefs: Preferences) => {
     try {
       setSyncStatus('syncing');
-      setSyncMessage('Encrypting and uploading...');
+      setSyncMessage(t('encryptingUploading'));
       const payload = JSON.stringify({
         logs,
         preferences: currentPrefs,
@@ -224,17 +228,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       await uploadToGoogleDrive(token, encrypted);
       setPreferences(p => ({ ...p, cloudSyncLastSync: new Date().toISOString() }));
       setSyncStatus('success');
-      setSyncMessage('Sync complete!');
+      setSyncMessage(t('syncComplete'));
     } catch (e) {
       console.error(e);
       const errMsg = e instanceof Error ? e.message : String(e);
       if (errMsg.includes('401') || errMsg.includes('auth') || errMsg.includes('credential')) {
         setPendingSyncAction('backup');
         setSyncStatus('error');
-        setSyncMessage('Session expired. Click Reconnect below to resume backup.');
+        setSyncMessage(t('sessionExpiredResumeBackup'));
       } else {
         setSyncStatus('error');
-        setSyncMessage(`Sync failed: ${errMsg}`);
+        setSyncMessage(`${t('syncFailedDetail')} ${errMsg}`);
       }
     }
   };
@@ -242,11 +246,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
   const runRestoreWithToken = async (token: string, currentPrefs: Preferences) => {
     try {
       setSyncStatus('syncing');
-      setSyncMessage('Downloading and decrypting...');
+      setSyncMessage(t('downloadingDecrypting'));
       const encrypted = await downloadFromGoogleDrive(token);
       if (!encrypted) {
         setSyncStatus('error');
-        setSyncMessage('No backup found in Google Drive.');
+        setSyncMessage(t('noBackupFound'));
         return;
       }
       const decrypted = await decryptData(encrypted, currentPrefs.cloudSyncPin);
@@ -263,7 +267,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
         setPreferences(data.preferences);
       }
       setSyncStatus('success');
-      setSyncMessage('Restore successful! Reloading page in a moment...');
+      setSyncMessage(t('restoreSuccessful'));
       setTimeout(() => {
         window.location.reload();
       }, 1500);
@@ -273,17 +277,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
       if (errMsg.includes('401') || errMsg.includes('auth') || errMsg.includes('credential')) {
         setPendingSyncAction('restore');
         setSyncStatus('error');
-        setSyncMessage('Session expired. Click Reconnect below to restore.');
+        setSyncMessage(t('sessionExpiredResumeRestore'));
       } else {
         setSyncStatus('error');
-        setSyncMessage(`Restore failed: ${errMsg}`);
+        setSyncMessage(`${t('restoreFailedDetail')} ${errMsg}`);
       }
     }
   };
 
   const handleManualSync = async () => {
     if (!preferences.cloudSyncToken || !preferences.cloudSyncPin) {
-      setSyncMessage('Please connect to Google and set a PIN first.');
+      setSyncMessage(t('connectAndPinFirst'));
       return;
     }
     await runBackupWithToken(preferences.cloudSyncToken, preferences);
@@ -514,7 +518,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                 onClick={() => { if (!tabRow.dragState.current.moved) setActiveTab(tab.id); }}
               >
                 <Icon size={16} />
-                <span>{tab.label}</span>
+                <span>{t(tab.label)}</span>
               </button>
             );
           })}
@@ -534,10 +538,14 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                   {(preferences.userProfile?.name || user?.email || '?').trim().charAt(0).toUpperCase()}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '1.02rem' }}>{preferences.userProfile?.name || 'Unnamed driver'}</div>
+                  <div style={{ fontWeight: 600, fontSize: '1.02rem' }}>{preferences.userProfile?.name || t('unnamedDriver')}</div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{user?.email || '—'}</div>
                   {preferences.userProfile?.occupations?.length > 0 && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{preferences.userProfile.occupations.join(' · ')}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                      {preferences.userProfile.occupations
+                        .map(o => { const hit = OCCUPATIONS.find(([value]) => value === o); return hit ? t(hit[1]) : o; })
+                        .join(' · ')}
+                    </div>
                   )}
                 </div>
               </div>
@@ -546,22 +554,24 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
                   <Clock size={16} color="var(--accent-blue)" />
-                  <strong style={{ fontSize: '0.95rem' }}>Access</strong>
+                  <strong style={{ fontSize: '0.95rem' }}>{t('access')}</strong>
                   {typeof daysRemaining === 'number' && (
                     <span style={{
                       marginLeft: 'auto', fontSize: '0.8rem', fontWeight: 600,
                       color: daysRemaining <= 2 ? 'var(--accent-orange)' : 'var(--accent-green)',
                     }}>
-                      {daysRemaining <= 0 ? 'Reconnect required' : daysRemaining === 1 ? '1 day left' : `${daysRemaining} days left`}
+                      {daysRemaining <= 0 ? t('reconnectRequired') : daysRemaining === 1 ? t('oneDayLeft') : `${daysRemaining} ${t('daysLeftSuffix')}`}
                     </span>
                   )}
                 </div>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  You can keep logging offline for {daysRemaining === 1 ? 'one more day' : `${daysRemaining ?? 7} more days`}. After that, one reconnect extends the window — this is also where a subscription will renew access.
+                  {daysRemaining === 1
+                    ? t('offlineGraceOne')
+                    : t('offlineGraceMany').replace('{n}', String(daysRemaining ?? 7))}
                 </p>
                 <button className="btn-primary btn-compact" onClick={handleRevalidate} disabled={syncingNow || !online}
                   style={{ marginTop: '0.75rem' }}>
-                  <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> Renew session now
+                  <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> {t('renewSessionNow')}
                 </button>
               </div>
 
@@ -569,55 +579,54 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
                   <Cloud size={16} color={verifiedConnected ? 'var(--accent-blue)' : 'var(--text-secondary)'} />
-                  <strong style={{ fontSize: '0.95rem' }}>Backup &amp; device sync</strong>
+                  <strong style={{ fontSize: '0.95rem' }}>{t('backupDeviceSync')}</strong>
                   <span style={{
                     marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 600,
                     color: !provider || verifiedConnected === false ? 'var(--text-secondary)' : !online ? 'var(--text-secondary)' : syncState === 'error' ? 'var(--accent-red)' : syncState === 'syncing' ? 'var(--accent-blue)' : 'var(--accent-green)',
                   }}>
                     {!provider
-                      ? 'Optional — not connected'
+                      ? t('statusOptionalNotConnected')
                       : verifiedConnected === false
-                        ? 'Not connected'
+                        ? t('statusNotConnected')
                         : verifiedConnected === null
-                          ? 'Checking…'
+                          ? t('statusChecking')
                           : !online
-                            ? 'Offline'
+                            ? t('offline')
                             : syncState === 'syncing'
-                              ? 'Syncing…'
+                              ? t('syncing')
                               : syncState === 'error'
-                                ? 'Error'
-                                : 'On'}
+                                ? t('statusError')
+                                : t('statusOn')}
                   </span>
                 </div>
                 <p style={{ margin: '0 0 0.7rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Your data always lives on this device. Connect a cloud to add an
-                  automatic backup there and keep multiple devices in sync.
+                  {t('backupBody')}
                 </p>
 
                 {(!provider || verifiedConnected === false) ? (
                   <button className="btn-primary btn-compact" onClick={() => handleConnectProvider(googleDriveProvider)} disabled={!online || connectingProvider}>
-                    {connectingProvider ? <RefreshCw size={15} className="spin" /> : <Cloud size={15} />} Connect Google Drive
+                    {connectingProvider ? <RefreshCw size={15} className="spin" /> : <Cloud size={15} />} {t('connectGoogleDrive')}
                   </button>
                 ) : (
                   <>
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'grid', gap: '0.2rem' }}>
-                      <div><strong>Provider:</strong> {provider.label}</div>
-                      <div><strong>Last sync:</strong> {fmtDateTime(lastSyncedAt)}</div>
+                      <div><strong>{t('provider')}:</strong> {provider.label}</div>
+                      <div><strong>{t('lastSync')}</strong> {fmtDateTime(lastSyncedAt)}</div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
                       <button className="btn-primary btn-compact" onClick={handleSyncNow} disabled={syncingNow || !online}>
-                        <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> Sync now
+                        <RefreshCw size={15} className={syncingNow ? 'spin' : ''} /> {t('syncNow')}
                       </button>
                       <button onClick={() => handleDisconnectProvider(provider)} disabled={syncingNow}
                         style={{ background: 'none', border: 'none', color: 'var(--accent-red)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.8rem' }}>
-                        Disconnect
+                        {t('disconnect')}
                       </button>
                     </div>
                   </>
                 )}
                 {handshakeError && (
                   <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.75rem', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', fontSize: '0.8rem', color: 'var(--accent-red)' }}>
-                    Google sign-in failed: {handshakeError}
+                    {t('googleSignInFailed')}: {handshakeError}
                   </div>
                 )}
                 {syncNowMsg && (
@@ -631,34 +640,32 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
                   <Lock size={16} color="var(--accent-blue)" />
-                  <strong style={{ fontSize: '0.95rem' }}>Encrypted Cloud Sync</strong>
-                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>optional manual backup</span>
+                  <strong style={{ fontSize: '0.95rem' }}>{t('encryptedCloudSync')}</strong>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{t('optionalManualBackup')}</span>
                 </div>
                 <p style={{ margin: '0 0 0.9rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Writes a PIN-encrypted copy of all data to a hidden folder on your
-                  Google Drive. Independent of the automatic sync above — an extra
-                  safety net you control.
+                  {t('encryptedBackupBody')}
                 </p>
                 {!preferences.cloudSyncToken ? (
                   <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
                     <button className="btn-primary btn-compact" onClick={() => login()}>
-                      Enable Encrypted Backup
+                      {t('enableEncryptedBackup')}
                     </button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div className="input-group" style={{ margin: 0 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Lock size={14} /> Encryption PIN / Passphrase
+                        <Lock size={14} /> {t('encryptionPin')}
                       </label>
                       <input
                         type="password"
-                        placeholder="Required to encrypt/decrypt data"
+                        placeholder={t('pinRequiredPlaceholder')}
                         value={preferences.cloudSyncPin}
                         onChange={e => setPreferences(p => ({ ...p, cloudSyncPin: e.target.value }))}
                       />
                       <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'var(--accent-orange)' }}>
-                        If you lose this PIN, your backup cannot be recovered.
+                        {t('pinLostWarning')}
                       </p>
                     </div>
 
@@ -669,7 +676,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                         disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
                         style={{ flex: 1 }}
                       >
-                        <Cloud size={16} /> Backup Now
+                        <Cloud size={16} /> {t('backupNow')}
                       </button>
                       <button
                         className="btn-primary btn-compact"
@@ -677,7 +684,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                         disabled={!preferences.cloudSyncPin || syncStatus === 'syncing'}
                         style={{ flex: 1, background: 'transparent', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)' }}
                       >
-                        Restore Data
+                        {t('restoreData')}
                       </button>
                     </div>
 
@@ -714,7 +721,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                               boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                             }}
                           >
-                            Reconnect & Retry
+                            {t('reconnectAndRetry')}
                           </button>
                         )}
                       </div>
@@ -722,7 +729,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
                     {preferences.cloudSyncLastSync && (
                       <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
-                        Last backup: {formatDateTimeIso(preferences.cloudSyncLastSync)}
+                        {t('lastBackupPrefix')} {formatDateTimeIso(preferences.cloudSyncLastSync)}
                       </p>
                     )}
 
@@ -730,7 +737,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                       onClick={handleLogout}
                       style={{ background: 'none', border: 'none', color: 'var(--accent-red)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.8rem' }}
                     >
-                      Disconnect encrypted backup
+                      {t('disconnectEncryptedBackup')}
                     </button>
                   </div>
                 )}
@@ -740,11 +747,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
                   <Activity size={16} color={provider ? 'var(--accent-blue)' : 'var(--text-secondary)'} />
-                  <strong style={{ fontSize: '0.95rem' }}>Connection health</strong>
+                  <strong style={{ fontSize: '0.95rem' }}>{t('connectionHealth')}</strong>
                   <button
                     onClick={refreshHealth}
                     disabled={healthBusy || !online}
-                    title="Refresh from Google Drive"
+                    title={t('refreshFromDrive')}
                     style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: healthBusy ? 'wait' : 'pointer', display: 'flex', padding: 4 }}
                   >
                     <RefreshCw size={14} className={healthBusy ? 'spin' : ''} />
@@ -752,40 +759,39 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                 </div>
                 {!provider ? (
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    Running local-only. Connect a cloud above to see storage and
-                    sync health here.
+                    {t('localOnlyBody')}
                   </div>
                 ) : !health ? (
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    {healthBusy ? 'Checking Google Drive…' : 'No health data yet.'}
+                    {healthBusy ? t('checkingDrive') : t('noHealthData')}
                   </div>
                 ) : !health.connected ? (
                   <div style={{ fontSize: '0.82rem', color: 'var(--accent-red)' }}>
-                    Google Drive is not reachable right now.
+                    {t('driveUnreachable')}
                   </div>
                 ) : (
                   <div style={{ fontSize: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.35rem 1rem', alignItems: 'baseline' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Weeks stored</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('weeksStored')}</span>
                     <span style={{ fontWeight: 600 }}>{health.weeksStored}</span>
-                    <span style={{ color: 'var(--text-secondary)' }}>Storage used</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('storageUsed')}</span>
                     <span style={{ fontWeight: 600 }}>
                       {health.bytesUsed >= 1024 * 1024
                         ? `${(health.bytesUsed / (1024 * 1024)).toFixed(2)} MB`
                         : `${Math.max(1, Math.round(health.bytesUsed / 1024))} KB`}
                     </span>
-                    <span style={{ color: 'var(--text-secondary)' }}>Index file</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('indexFile')}</span>
                     <span style={{ color: health.indexOk ? 'var(--accent-green)' : 'var(--accent-orange)', fontWeight: 600 }}>
-                      {health.indexOk ? 'OK' : 'Missing (rebuilt on next sync)'}
+                      {health.indexOk ? t('statusOk') : t('missingRebuilt')}
                     </span>
-                    <span style={{ color: 'var(--text-secondary)' }}>Preferences file</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('preferencesFile')}</span>
                     <span style={{ color: health.prefsOk ? 'var(--accent-green)' : 'var(--accent-orange)', fontWeight: 600 }}>
-                      {health.prefsOk ? 'OK' : 'Missing (recreated on next sync)'}
+                      {health.prefsOk ? t('statusOk') : t('missingRecreated')}
                     </span>
                   </div>
                 )}
                 {syncState === 'error' && syncErrorMessage && (
                   <div style={{ marginTop: '0.6rem', fontSize: '0.78rem', color: 'var(--accent-red)' }}>
-                    <strong>Last error:</strong> {syncErrorMessage}
+                    <strong>{t('lastError')}</strong> {syncErrorMessage}
                   </div>
                 )}
               </div>
@@ -795,7 +801,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                 <div style={{ padding: '1.1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
                     <KeyRound size={16} color="var(--accent-blue)" />
-                    <strong style={{ fontSize: '0.95rem' }}>Credentials</strong>
+                    <strong style={{ fontSize: '0.95rem' }}>{t('credentials')}</strong>
                   </div>
                   <div style={{ display: 'grid', gap: '0.45rem', fontSize: '0.85rem' }}>
                     {credentials.map(c => {
@@ -808,7 +814,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                             fontWeight: urgent ? 600 : 400,
                             color: d <= 7 ? 'var(--accent-red)' : urgent ? 'var(--accent-orange)' : 'var(--text-secondary)',
                           }}>
-                            {d <= 0 ? `EXPIRED ${Math.abs(d)}d ago` : `${d}d left`}
+                            {d <= 0
+                              ? t('expiredDaysAgo').replace('{n}', String(Math.abs(d)))
+                              : t('daysLeftShort').replace('{n}', String(d))}
                             <span style={{ opacity: 0.7, marginLeft: 6, fontWeight: 400 }}>({c.expiry})</span>
                           </span>
                         </div>
@@ -816,7 +824,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                     })}
                   </div>
                   <p style={{ margin: '0.6rem 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                    Edit dates under <em>Personal Info</em>.
+                    {t('editDatesUnderPersonal')}
                   </p>
                 </div>
               )}
@@ -826,28 +834,27 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
           {activeTab === 'personal' && (
             <>
-              <div className="input-group">
-            <label>Full Name</label>
+              <div className="input-group">            <label>{t('fullName')}</label>
             <input 
-              type="text" 
-              value={profile.name} 
+              type="text"
+              value={profile.name}
               onChange={e => setProfile({...profile, name: e.target.value})} 
-              placeholder="John Doe"
+              placeholder={t('placeholderFullName')}
             />
           </div>
 
           <div className="input-group">
-            <label>Email Address</label>
+            <label>{t('emailAddress')}</label>
             <input 
-              type="email" 
-              value={profile.email} 
+              type="email"
+              value={profile.email}
               onChange={e => setProfile({...profile, email: e.target.value})} 
               placeholder="john@example.com"
             />
           </div>
 
           <div className="input-group">
-            <label>Driver Occupation</label>
+            <label>{t('driverOccupation')}</label>
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
@@ -856,22 +863,21 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               padding: '1rem', 
               borderRadius: '8px', 
               border: '1px solid var(--border-color)' 
-            }}>
-              {OCCUPATIONS.map(occ => (
-                <label key={occ} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+            }}>              {OCCUPATIONS.map(([value, key]) => (
+                <label key={value} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
                   <input 
-                    type="checkbox" 
-                    checked={profile.occupations.includes(occ)}
-                    onChange={() => toggleOccupation(occ)}
+                    type="checkbox"
+                    checked={profile.occupations.includes(value)}
+                    onChange={() => toggleOccupation(value)}
                   />
-                  {occ}
+                  {t(key)}
                 </label>
               ))}
             </div>
           </div>
 
           <div className="input-group">
-            <label>Driver License Number</label>
+            <label>{t('driverLicenseNumber')}</label>
             <input 
               type="text" 
               value={profile.licenseNumber} 
@@ -881,7 +887,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
             <div className="input-group">
-              <label>License Expires</label>
+              <label>{t('licenseExpires')}</label>
               <input 
                 type="date" 
                 value={profile.licenseExpiry} 
@@ -889,7 +895,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
               />
             </div>
             <div className="input-group">
-              <label>Medical Exam Expires</label>
+              <label>{t('medicalExpires')}</label>
               <input 
                 type="date" 
                 value={profile.medicalExpiry} 
@@ -899,7 +905,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
           </div>
 
             <div className="input-group">
-              <label>First Aid Expires</label>
+              <label>{t('firstAidExpires')}</label>
               <input 
                 type="date" 
                 value={profile.firstAidExpiry} 
@@ -913,31 +919,31 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {(profile.vehicles || []).length === 0 && (
                 <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem', background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-                  No saved vehicles. Press the <strong>Add Vehicle</strong> button to add one.
+                  {t('noSavedVehicles')} <strong>{t('addVehicleButton')}</strong> {t('addOneSuffix')}
                 </div>
               )}
               {(profile.vehicles || []).map(v => (
                 <div key={v.id} style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', position: 'relative' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', paddingRight: '2rem' }}>{v.friendlyName || v.vin || v.licensePlate || 'Unnamed Vehicle'}</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', paddingRight: '2rem' }}>{v.friendlyName || v.vin || v.licensePlate || t('unnamedVehicle')}</h4>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem' }}>
-                    <div><strong>VIN:</strong> {v.vin || '--'}</div>
-                    <div><strong>Plate:</strong> {v.licensePlate || '--'}</div>
+                    <div><strong>{t('vinLabel')}</strong> {v.vin || '--'}</div>
+                    <div><strong>{t('plateLabel')}</strong> {v.licensePlate || '--'}</div>
                     <div>
-                      <strong>Mileage:</strong> {getVehicleMileage(v)}
+                      <strong>{t('labelMileage')}</strong> {getVehicleMileage(v)}
                       {(() => { const info = getVehicleMileageInfo(v); return info.lastUpdated ? (
                         <span style={{ marginLeft: '0.5rem', fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          Last updated: {formatMileageTimestamp(info.lastUpdated)}
+                          {t('lastUpdated')} {formatMileageTimestamp(info.lastUpdated)}
                         </span>
                       ) : null; })()}
                     </div>
-                    <div><strong>Operator:</strong> {v.operatorName || '--'}</div>
-                    <div style={{ gridColumn: '1 / -1' }}><strong>Inspected:</strong> {formatInspectionMonth(v.inspectionDate) || '--'}</div>
+                    <div><strong>{t('labelOperator')}</strong> {v.operatorName || '--'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>{t('inspectedLabel')}</strong> {formatInspectionMonth(v.inspectionDate) || '--'}</div>
                   </div>
                   <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', display: 'flex', gap: '0.5rem' }}>
                     <button 
                       style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '0.4rem', borderRadius: '6px', color: 'var(--accent-blue)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       onClick={() => startEditVehicle(v)}
-                      title="Edit Vehicle"
+                      title={t('editVehicleTitle')}
                     >
                       <Pencil size={14} />
                     </button>
@@ -947,7 +953,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                         if (editingVehicleId === v.id) handleCancelEdit();
                         setProfile(p => ({ ...p, vehicles: (p.vehicles || []).filter(x => x.id !== v.id) }));
                       }}
-                      title="Delete Vehicle"
+                      title={t('deleteVehicleTitle')}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -961,19 +967,19 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                   style={{ alignSelf: 'flex-start' }}
                   onClick={() => { setEditingVehicleId(null); setNewVehicle({ friendlyName: '', vin: '', licensePlate: '', mileage: '', operatorName: '', inspectionDate: '' }); setShowVehicleForm(true); }}
                 >
-                  <Plus size={18} /> Add Vehicle
+                  <Plus size={18} /> {t('addVehicleButton')}
                 </button>
               )}
 
               {showVehicleForm && (
               <div style={{ padding: '1.25rem', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
                 <h4 style={{ margin: '0 0 1rem 0', color: editingVehicleId ? 'var(--accent-blue)' : 'inherit' }}>
-                  {editingVehicleId ? 'Edit Vehicle Details' : 'Add New Vehicle'}
+                  {editingVehicleId ? t('editVehicleDetails') : t('addNewVehicle')}
                 </h4>
                 <div style={{ display: 'grid', gap: '1rem' }}>
                   <div className="input-group">
-                    <label>Friendly Name (Optional)</label>
-                    <input type="text" value={newVehicle.friendlyName} onChange={e => setNewVehicle({...newVehicle, friendlyName: e.target.value})} placeholder="e.g. Bus 42" />
+                    <label>{t('friendlyName')}</label>
+                    <input type="text" value={newVehicle.friendlyName} onChange={e => setNewVehicle({...newVehicle, friendlyName: e.target.value})} placeholder={t('placeholderBusExample')} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
                     <div className="input-group">
@@ -981,29 +987,29 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                       <input type="text" value={newVehicle.vin} onChange={e => setNewVehicle({...newVehicle, vin: e.target.value})} />
                     </div>
                     <div className="input-group">
-                      <label>License Plate</label>
+                      <label>{t('licensePlate')}</label>
                       <input type="text" value={newVehicle.licensePlate} onChange={e => setNewVehicle({...newVehicle, licensePlate: e.target.value})} />
                     </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
                     <div className="input-group">
                       <label style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                        Mileage
+                        {t('mileage')}
                         {editingVehicleId && (() => { const info = getVehicleMileageInfo(profile.vehicles.find(x => x.id === editingVehicleId)!); return info.lastUpdated ? (
                           <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            Last updated: {formatMileageTimestamp(info.lastUpdated)}
+                            {t('lastUpdated')} {formatMileageTimestamp(info.lastUpdated)}
                           </span>
                         ) : null; })()}
                       </label>
-                      <input type="number" aria-label="Mileage" value={newVehicle.mileage} onChange={e => setNewVehicle({...newVehicle, mileage: e.target.value})} placeholder="Odometer" />
+                      <input type="number" aria-label={t('mileage')} value={newVehicle.mileage} onChange={e => setNewVehicle({...newVehicle, mileage: e.target.value})} placeholder={t('odometerPlaceholder')} />
                     </div>
                     <div className="input-group">
-                      <label>Inspection Date (Month &amp; Year)</label>
+                      <label>{t('inspectionDate')}</label>
                       <input type="month" value={newVehicle.inspectionDate} onChange={e => setNewVehicle({...newVehicle, inspectionDate: e.target.value})} />
                     </div>
                   </div>
                   <div className="input-group">
-                    <label>Operator / Company</label>
+                    <label>{t('operatorCompany')}</label>
                     <div style={{ position: 'relative' }}>
                       <input
                         type="text"
@@ -1014,7 +1020,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                         onFocus={() => openOperatorAutocomplete()}
                         onBlur={() => closeOperatorAutocomplete()}
                         autoComplete="off"
-                        placeholder="Search saved companies..."
+                        placeholder={t('searchCompaniesPlaceholder')}
                       />
                       {operatorAutocomplete && (profile.operatorCompanies || []).length > 0 && (
                         <div
@@ -1065,10 +1071,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
                     <button className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={handleAddVehicle}>
-                      <Save size={18} /> Save
+                      <Save size={18} /> {t('save')}
                     </button>
                     <button className="btn-secondary" style={{ marginTop: '0.5rem' }} onClick={handleCancelEdit}>
-                      <X size={18} /> Cancel
+                      <X size={18} /> {t('cancel')}
                     </button>
                   </div>
                 </div>
@@ -1081,21 +1087,21 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {(profile.operatorCompanies || []).length === 0 && (
                 <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem', background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-                  No saved companies. Press the <strong>Add Company</strong> button to add one.
+                  {t('noSavedCompanies')} <strong>{t('addCompanyButton')}</strong> {t('addOneSuffix')}
                 </div>
               )}
               {(profile.operatorCompanies || []).map(c => (
                 <div key={c.id} style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', position: 'relative' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', paddingRight: '2rem' }}>{c.name || 'Unnamed Company'}</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', paddingRight: '2rem' }}>{c.name || t('unnamedCompany')}</h4>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem' }}>
-                    <div style={{ gridColumn: '1 / -1' }}><strong>Business:</strong> {c.businessAddress || '--'}</div>
-                    <div style={{ gridColumn: '1 / -1' }}><strong>Home Terminal:</strong> {c.homeTerminalAddress || '--'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>{t('labelBusiness')}</strong> {c.businessAddress || '--'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>{t('labelHomeTerminal')}</strong> {c.homeTerminalAddress || '--'}</div>
                   </div>
                   <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', display: 'flex', gap: '0.5rem' }}>
                     <button
                       style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '0.4rem', borderRadius: '6px', color: 'var(--accent-blue)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       onClick={() => startEditCompany(c)}
-                      title="Edit Company"
+                      title={t('editCompanyTitle')}
                     >
                       <Pencil size={14} />
                     </button>
@@ -1105,7 +1111,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                         if (editingCompanyId === c.id) handleCancelEditCompany();
                         setProfile(p => ({ ...p, operatorCompanies: (p.operatorCompanies || []).filter(x => x.id !== c.id) }));
                       }}
-                      title="Delete Company"
+                      title={t('deleteCompanyTitle')}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1119,34 +1125,34 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
                   style={{ alignSelf: 'flex-start' }}
                   onClick={() => { setEditingCompanyId(null); setNewCompany({ name: '', businessAddress: '', homeTerminalAddress: '' }); setShowCompanyForm(true); }}
                 >
-                  <Plus size={18} /> Add Company
+                  <Plus size={18} /> {t('addCompanyButton')}
                 </button>
               )}
 
               {showCompanyForm && (
                 <div style={{ padding: '1.25rem', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
                   <h4 style={{ margin: '0 0 1rem 0', color: editingCompanyId ? 'var(--accent-blue)' : 'inherit' }}>
-                    {editingCompanyId ? 'Edit Company Details' : 'Add New Company'}
+                    {editingCompanyId ? t('editCompanyDetails') : t('addNewCompany')}
                   </h4>
                   <div style={{ display: 'grid', gap: '1rem' }}>
                     <div className="input-group">
-                      <label>Company Name</label>
-                      <input type="text" value={newCompany.name} onChange={e => setNewCompany({...newCompany, name: e.target.value})} placeholder="e.g. Acme Trucking Inc." />
+                      <label>{t('companyName')}</label>
+                      <input type="text" value={newCompany.name} onChange={e => setNewCompany({...newCompany, name: e.target.value})} placeholder={t('placeholderCompanyExample')} />
                     </div>
                     <div className="input-group">
-                      <label>Business Address</label>
-                      <input type="text" value={newCompany.businessAddress} onChange={e => setNewCompany({...newCompany, businessAddress: e.target.value})} placeholder="Street, City, Province" />
+                      <label>{t('businessAddress')}</label>
+                      <input type="text" value={newCompany.businessAddress} onChange={e => setNewCompany({...newCompany, businessAddress: e.target.value})} placeholder={t('placeholderStreetCity')} />
                     </div>
                     <div className="input-group">
-                      <label>Home Terminal Address</label>
-                      <input type="text" value={newCompany.homeTerminalAddress} onChange={e => setNewCompany({...newCompany, homeTerminalAddress: e.target.value})} placeholder="City, Province" />
+                      <label>{t('homeTerminalAddress')}</label>
+                      <input type="text" value={newCompany.homeTerminalAddress} onChange={e => setNewCompany({...newCompany, homeTerminalAddress: e.target.value})} placeholder={t('placeholderCityProvince')} />
                     </div>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <button className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={handleSaveCompany}>
-                        <Save size={18} /> Save
+                        <Save size={18} /> {t('save')}
                       </button>
                       <button className="btn-secondary" style={{ marginTop: '0.5rem' }} onClick={handleCancelEditCompany}>
-                        <X size={18} /> Cancel
+                        <X size={18} /> {t('cancel')}
                       </button>
                     </div>
                   </div>
@@ -1163,10 +1169,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({ preferences, setPreferences,
 
         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
           <button className="btn-secondary" onClick={onClose}>
-            Cancel
+            {t('cancel')}
           </button>
           <button className="btn-primary" onClick={handleSave}>
-            <Save size={18} /> Save Preferences
+            <Save size={18} /> {t('savePreferences')}
           </button>
         </div>
       </div>

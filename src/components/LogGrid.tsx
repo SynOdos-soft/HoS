@@ -1,6 +1,7 @@
 import React from 'react';
 import { Status, Preferences } from '../types';
 import { isToday as isDateToday, parseISO } from 'date-fns';
+import { useT, type TranslationKey } from '../utils/i18n';
 
 interface LogGridProps {
   grid: Status[];
@@ -9,9 +10,19 @@ interface LogGridProps {
 }
 
 export const LogGrid: React.FC<LogGridProps> = ({ grid, preferences, date }) => {
+  const t = useT();
   const statusLabels: Status[] = preferences.showSleeper
     ? ['off-duty', 'sleeper', 'driving', 'on-duty']
     : ['off-duty', 'driving', 'on-duty'];
+
+  // Row captions are words, not the regulatory codes inside the cells, so they
+  // follow the UI language.
+  const STATUS_LABEL_KEYS: Record<string, TranslationKey> = {
+    'off-duty': 'offDuty',
+    sleeper: 'sleeper',
+    driving: 'driving',
+    'on-duty': 'onDuty',
+  };
 
   const labelWidth = 70;
   const hourWidth = 50;
@@ -88,7 +99,7 @@ export const LogGrid: React.FC<LogGridProps> = ({ grid, preferences, date }) => 
             borderBottom: '1px solid var(--glass-border)',
             textTransform: 'uppercase'
           }}>
-            {status.replace('-', ' ')}
+            {STATUS_LABEL_KEYS[status] ? t(STATUS_LABEL_KEYS[status]) : status.replace('-', ' ')}
           </div>
         ))}
       </div>
@@ -97,7 +108,7 @@ export const LogGrid: React.FC<LogGridProps> = ({ grid, preferences, date }) => 
       <div 
         className="log-grid-scroll-area" 
         role="region" 
-        aria-label="Duty status grid, scroll horizontally to view all hours" 
+        aria-label={t('dutyStatusGrid')} 
         tabIndex={0}
         style={{
         flexGrow: 1,

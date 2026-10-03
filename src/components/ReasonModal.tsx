@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea, Field, FieldLabel } from './ui/form-controls';
+import { useT } from '../utils/i18n';
 
 interface ReasonModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface ReasonModalProps {
 
 export const ReasonModal: React.FC<ReasonModalProps> = ({ isOpen, onSave, onDiscard, onCancel, isNavigating }) => {
   const [reason, setReason] = useState('');
+  const t = useT();
   if (!isOpen) return null;
   return (
     <div className="ui-modal-backdrop">
@@ -23,12 +25,12 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({ isOpen, onSave, onDisc
           <p>{isNavigating ? 'A locked day was modified. Save a reason or discard the changes before continuing.' : 'Historical or locked data requires a justification for the audit log.'}</p>
         </div>
         <Field>
-          <FieldLabel htmlFor="edit-reason">Justification / reason code</FieldLabel>
-          <Textarea id="edit-reason" autoFocus placeholder="Corrected duty status mismatch from dispatch records..." value={reason} onChange={e => setReason(e.target.value)} />
+          <FieldLabel htmlFor="edit-reason">{t('justificationSlashCode')}</FieldLabel>
+          <Textarea id="edit-reason" autoFocus placeholder={t('reasonPlaceholder')} value={reason} onChange={e => setReason(e.target.value)} />
         </Field>
         <div className="ui-modal-actions">
-          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-          {onDiscard && <Button variant="destructive" onClick={() => { onDiscard(); setReason(''); }}>Discard changes</Button>}
+          <Button variant="ghost" onClick={onCancel}>{t('cancel')}</Button>
+          {onDiscard && <Button variant="destructive" onClick={() => { onDiscard(); setReason(''); }}>{t('discardChanges')}</Button>}
           <Button disabled={!reason.trim()} onClick={() => { onSave(reason); setReason(''); }}>{isNavigating ? 'Save & navigate' : 'Confirm & save'}</Button>
         </div>
       </div>

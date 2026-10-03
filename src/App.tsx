@@ -14,6 +14,7 @@ import { generatePDF } from './utils/pdf';
 import { Download, Plus, Trash2, Lock, LockOpen, WifiOff, ChevronLeft, ChevronRight, Eye, Pencil, Coffee, Bed, Briefcase, X, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { startOfWeek, addDays, subDays, format, parseISO, getWeek, isToday, isBefore, startOfDay } from 'date-fns';
 import { t } from './utils/i18n';
+import { useT as useTranslator, setI18nLanguage, dateLocaleFor } from './utils/i18n';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { InspectionView } from './components/InspectionView';
 import { OfficerReport, OfficerLinkError } from './components/OfficerReport';
@@ -84,6 +85,7 @@ const createEmptyDays = (startDate: Date, defaultPlate: string = '', defaultMeta
 
 export default function App() {
   const { session, user, loading: authLoading, signOut, authFresh, daysRemaining } = useAuth();
+  const translate = useTranslator();
 
   // Live view of the current location (query + fragment). A QR-scanned
   // "?o=..." link normally arrives as a fresh page load, but pasting or typing
@@ -335,6 +337,12 @@ export default function App() {
     if (outcome === 'accepted') setInstallPrompt(null);
   };
 
+  // Keep the dictionary (and <html lang>, document title) in step with the
+  // saved language preference.
+  useEffect(() => {
+    setI18nLanguage(preferences.language || 'en');
+  }, [preferences.language]);
+
   useEffect(() => {
     if (preferences.theme === 'light') {
       document.body.classList.add('light-mode');
@@ -521,12 +529,12 @@ export default function App() {
       cycle: currentDayMeta.cycle,
     };
     setScopedItem(METADATA_PRESET_KEY, getActiveAccount(), JSON.stringify(preset));
-    alert('Preset saved!');
+    alert(translate('presetSaved'));
   };
 
   const handleApplyPreset = () => {
     const raw = getScopedItem(METADATA_PRESET_KEY, getActiveAccount());
-    if (!raw) { alert('No preset saved yet.'); return; }
+    if (!raw) { alert(translate('noPresetSaved')); return; }
     const preset = JSON.parse(raw);
     // Apply preset to the selected day's metadata
     const updatedDays = days.map((d, i) =>
@@ -1147,7 +1155,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             {day.lastEdited && (
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Last Edited: {format(parseISO(day.lastEdited), 'HH:mm:ss')}
+                {translate('lastEdited')} {format(parseISO(day.lastEdited), 'HH:mm:ss')}
               </span>
             )}
             <button className={`tool-btn ${day.locked ? 'active' : ''}`} onClick={() => toggleDayLock(idx)}>
@@ -1169,10 +1177,10 @@ export default function App() {
         <div className="vehicle-entry-group" style={{ marginBottom: '0.5rem' }}>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <div className="input-group" style={{ flex: 2, minWidth: '220px', position: 'relative' }}>
-              <label>{day.vehicleName ? 'Vehicle' : 'CMV Plate'}</label>
+              <label>{day.vehicleName ? translate('vehicleLabel') : translate('cmvPlate')}</label>
               <input
                 type="text"
-                aria-label={day.vehicleName ? 'Vehicle' : 'CMV Plate'}
+                aria-label={day.vehicleName ? translate('vehicleLabel') : translate('cmvPlate')}
                 value={day.vehicleName ? `${day.vehicleName} (${day.cmvPlate})` : (day.cmvPlate || '')}
                 onChange={e => {
                   const val = e.target.value;
@@ -1222,7 +1230,7 @@ export default function App() {
                   }, 200);
                 }}
                 disabled={day.locked}
-                placeholder="CMV Plate"
+                placeholder={t('cmvPlate', preferences.language)}
                 style={{ width: '100%' }}
               />
               {activeAutocompleteDay === idx && (preferences.userProfile?.vehicles || []).length > 0 && (
@@ -1257,17 +1265,17 @@ export default function App() {
                   className={`icon-btn ${pendingAdditionalDeletes[`${idx}-${vehicleIdx}`] ? 'delete-confirm' : ''}`}
                   onClick={() => requestRemoveAdditionalVehicle(idx, vehicleIdx)}
                   disabled={day.locked}
-                  title={pendingAdditionalDeletes[`${idx}-${vehicleIdx}`] ? 'Click again to confirm removal' : 'Remove vehicle'}
+                  title={pendingAdditionalDeletes[`${idx}-${vehicleIdx}`] ? translate('confirm') : translate('removeVehicle')}
                 >
                   {pendingAdditionalDeletes[`${idx}-${vehicleIdx}`] ? <Trash2 size={15} /> : <X size={15} />}
                 </button>
               </div>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                 <div className="input-group" style={{ flex: 2, minWidth: '220px', position: 'relative' }}>
-                  <label>{vehicle.friendlyName ? 'Vehicle' : 'CMV Plate'}</label>
+                  <label>{vehicle.friendlyName ? translate('vehicleLabel') : translate('cmvPlate')}</label>
                   <input
                     type="text"
-                    aria-label={vehicle.friendlyName ? 'Vehicle' : 'CMV Plate'}
+                    aria-label={vehicle.friendlyName ? translate('vehicleLabel') : translate('cmvPlate')}
                     value={vehicle.friendlyName ? `${vehicle.friendlyName} (${vehicle.cmvPlate})` : vehicle.cmvPlate}
                     onChange={e => {
                       const value = e.target.value;
@@ -1332,7 +1340,7 @@ export default function App() {
 
         {preferences.showSameVehicle && (
           <button type="button" className="add-vehicle-btn" onClick={() => addAdditionalVehicle(idx)} disabled={day.locked}>
-            <Plus size={16} /> Add another vehicle
+            <Plus size={16} /> {translate('addAnotherVehicle')}
           </button>
         )}
 
@@ -1428,14 +1436,14 @@ export default function App() {
       <div className="main-content">
         {((needRefresh && !swDismmissed) || !isOnline || (installPrompt && showInstallBanner)) && (
           <div className="glass-panel no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem', fontSize: '0.875rem', background: needRefresh || (installPrompt && showInstallBanner) ? 'rgba(59, 130, 246, 0.2)' : !isOnline ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', borderColor: needRefresh || (installPrompt && showInstallBanner) ? 'var(--accent-blue)' : !isOnline ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-            {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>Offline</span></>)
+            {!isOnline ? (<><WifiOff size={16} color="var(--accent-red)" /> <span>{translate('offline')}</span></>)
               : needRefresh ? (<>
                 <RefreshCw size={16} />
-                <span>{isUpdating ? 'Updating…' : newVersion && newVersion !== APP_VERSION ? `Update to v${newVersion} available` : 'A new version is available'}</span>
-                <button className="btn-primary" onClick={handleUpdateClick} disabled={isUpdating} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>{isUpdating ? 'Updating…' : 'Update now'}</button>
+                <span>{isUpdating ? translate('updatingEllipsis') : newVersion && newVersion !== APP_VERSION ? translate('updateToAvailable').replace('{version}', newVersion) : translate('newVersionAvailable')}</span>
+                <button className="btn-primary" onClick={handleUpdateClick} disabled={isUpdating} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>{isUpdating ? translate('updatingEllipsis') : translate('updateNow')}</button>
               </>)
-              : (installPrompt && showInstallBanner) ? (<><Plus size={16} /> <span>Install App</span> <button className="btn-primary" onClick={handleInstallClick} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>Install</button></>) : null}
-            <button className="close-btn" aria-label="Dismiss" onClick={() => { if (needRefresh) { setSwDismmissed(true); } else { setShowInstallBanner(false); localStorage.setItem('hide-install-banner', 'true'); } }}><X size={14} /></button>
+              : (installPrompt && showInstallBanner) ? (<><Plus size={16} /> <span>{translate('installApp')}</span> <button className="btn-primary" onClick={handleInstallClick} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}>{translate('install')}</button></>) : null}
+            <button className="close-btn" aria-label={translate('dismiss')} onClick={() => { if (needRefresh) { setSwDismmissed(true); } else { setShowInstallBanner(false); localStorage.setItem('hide-install-banner', 'true'); } }}><X size={14} /></button>
           </div>
         )}
 
@@ -1459,11 +1467,11 @@ export default function App() {
             logs={savedLogs}
           />
         ) : view === 'audit' ? (
-          <main aria-label="Inspection">
+          <main aria-label={translate('navInspection')}>
             <InspectionView logs={savedLogs} preferences={preferences} onRoadsidePDF={handleRoadsidePDF} />
           </main>
         ) : view === 'dashboard' ? (
-          <main aria-label="Dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <main aria-label={translate('navDashboard')} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               {(() => {
                 const currentWeekId = format(startOfWeek(new Date(), { weekStartsOn: preferences.weekStartsOn }), 'yyyy-MM-dd');
                 
@@ -1472,7 +1480,7 @@ export default function App() {
                 savedLogs.forEach(l => {
                   try {
                     const date = parseISO(l.id);
-                    const key = format(date, 'MMMM yyyy');
+                    const key = format(date, 'MMMM yyyy', { locale: dateLocaleFor(preferences.language) });
                     if (!groups[key]) groups[key] = [];
                     groups[key].push(l);
                   } catch (e) {
@@ -1494,9 +1502,9 @@ export default function App() {
                 return sortedGroupKeys.map(month => (
                   <div key={month} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <h2 style={{ fontSize: '1.25rem', margin: '0.5rem 0 0.5rem 0', color: 'var(--text-secondary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontWeight: 600 }}>
-                      {month}
+                      {month === 'Other Logs' ? translate('otherLogs') : month}
                     </h2>
-                    <section style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }} aria-label={`${month} logs`}>
+                    <section style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }} aria-label={`${month === 'Other Logs' ? translate('otherLogs') : month} logs`}>
                       {groups[month].map(l => {
                         const isCurrent = l.id === currentWeekId;
                         const delStatus = deleteStatuses[l.id] || 'idle';
@@ -1538,11 +1546,11 @@ export default function App() {
                                 <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   {l.id}
                                   {isCurrent ? (
-                                    <span title="Active Week (Edit)" style={{ display: 'inline-flex' }}>
+                                    <span title={translate('activeWeekEdit')} style={{ display: 'inline-flex' }}>
                                       <Pencil size={15} color="var(--accent-blue)" style={{ flexShrink: 0 }} />
                                     </span>
                                   ) : (
-                                    <span title="Completed Week (View)" style={{ display: 'inline-flex' }}>
+                                    <span title={translate('completedWeekView')} style={{ display: 'inline-flex' }}>
                                       <Eye size={15} color="var(--text-secondary)" style={{ flexShrink: 0, opacity: 0.7 }} />
                                     </span>
                                   )}
@@ -1567,12 +1575,12 @@ export default function App() {
                                   }}
                                   onClick={(e) => { e.stopPropagation(); handleDeleteLog(l.id); }}
                                   disabled={delStatus === 'loading'}
-                                  title="Delete Log"
+                                  title={translate('deleteLog')}
                                 >
                                   {delStatus === 'loading' ? (
                                     <div className="loading-spinner-small" style={{ width: '12px', height: '12px' }} />
                                   ) : delStatus === 'confirm' ? (
-                                    <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>Confirm</span>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>{translate('confirm')}</span>
                                   ) : (
                                     <Trash2 size={14} />
                                   )}
@@ -1594,7 +1602,7 @@ export default function App() {
                                     transition: 'all 0.2s ease',
                                   }}
                                   onClick={(e) => { e.stopPropagation(); handleExportDashboardPDF(l); }}
-                                  title="Export PDF"
+                                  title={translate('exportPdf')}
                                 >
                                   <Download size={14} />
                                 </button>
@@ -1613,18 +1621,18 @@ export default function App() {
                               fontSize: '0.85rem',
                               fontWeight: 700
                             }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-blue)' }} title="Driving">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-blue)' }} title={translate('driving')}>
                                 <SteeringWheel size={14} /> <span>{totalD.toFixed(1)}h</span>
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }} title="On Duty">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-on-duty)' }} title={translate('onDuty')}>
                                 <Briefcase size={14} /> <span>{totalOn.toFixed(1)}h</span>
                               </div>
                               {preferences.showSleeper && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-sleeper)' }} title="Sleeper Berth">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-sleeper)' }} title={translate('sleeperBerth')}>
                                   <Bed size={14} /> <span>{totalSb.toFixed(1)}h</span>
                                 </div>
                               )}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-off-duty)' }} title="Off Duty">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--status-off-duty)' }} title={translate('offDuty')}>
                                 <Coffee size={14} /> <span>{totalOff.toFixed(1)}h</span>
                               </div>
                             </div>
@@ -1652,18 +1660,18 @@ export default function App() {
     />
 
               <div className="no-print glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
-                <button className="tool-btn" onClick={() => navigateToDay('prev')} aria-label="Previous day" style={{ padding: '0.5rem 1rem' }}>
+                <button className="tool-btn" onClick={() => navigateToDay('prev')} aria-label={translate('previousDay')} style={{ padding: '0.5rem 1rem' }}>
                   <ChevronLeft size={24} />
                 </button>
 
                 <div style={{ textAlign: 'center' }}>
                   <h2 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {days[selectedDayIndex] && format(parseISO(days[selectedDayIndex].date), 'EEEE, MMMM d')}
+                    {days[selectedDayIndex] && format(parseISO(days[selectedDayIndex].date), 'EEEE, MMMM d', { locale: dateLocaleFor(preferences.language) })}
                     {days[selectedDayIndex]?.locked && <Lock size={20} color="#ef4444" />}
                   </h2>
                 </div>
 
-                <button className="tool-btn" onClick={() => navigateToDay('next')} aria-label="Next day" style={{ padding: '0.5rem 1rem' }}>
+                <button className="tool-btn" onClick={() => navigateToDay('next')} aria-label={translate('nextDay')} style={{ padding: '0.5rem 1rem' }}>
                   <ChevronRight size={24} />
                 </button>
               </div>
@@ -1672,7 +1680,7 @@ export default function App() {
             </main>
 
             {days[selectedDayIndex] && (
-              <div className="fixed-totals-footer no-print" role="region" aria-label="Daily totals" style={{ padding: '0.75rem 1rem' }}>
+              <div className="fixed-totals-footer no-print" role="region" aria-label={translate('dailyTotals')} style={{ padding: '0.75rem 1rem' }}>
                 <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
                   <Totals
                     grid={days[selectedDayIndex].grid}
@@ -1706,7 +1714,7 @@ export default function App() {
           <span style={{ flex: 1, fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
             You're on the latest version (v{APP_VERSION})
           </span>
-          <button className="close-btn" aria-label="Dismiss" onClick={closeUpToDateToast} style={{ flexShrink: 0, marginTop: '0.125rem' }}>
+          <button className="close-btn" aria-label={translate('dismiss')} onClick={closeUpToDateToast} style={{ flexShrink: 0, marginTop: '0.125rem' }}>
             <X size={16} />
           </button>
           {!isToastClosing && (

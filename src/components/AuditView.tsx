@@ -1,6 +1,7 @@
 import { AuditEntry } from '../types';
 import { ArrowLeft, Shield, Clock, FileText, User, AlertCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { useT } from '../utils/i18n';
 
 interface AuditViewProps {
   auditLog: AuditEntry[];
@@ -8,6 +9,7 @@ interface AuditViewProps {
 }
 
 export const AuditView: React.FC<AuditViewProps> = ({ auditLog, onBack }) => {
+  const t = useT();
   return (
     <div className="audit-view-container">
       <header className="header no-print" style={{ marginBottom: '1.5rem' }}>
@@ -17,35 +19,34 @@ export const AuditView: React.FC<AuditViewProps> = ({ auditLog, onBack }) => {
           </button>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Shield size={24} color="var(--accent-orange)" />
-            Audit History & Compliance
+            {t('auditHistoryCompliance')}
           </h1>
         </div>
       </header>
 
       <div className="glass-panel" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         <div style={{ borderLeft: '4px solid var(--accent-orange)', paddingLeft: '1rem', marginBottom: '0.5rem' }}>
-          <h3 style={{ margin: 0 }}>Forensic Data Integrity Log</h3>
+          <h3 style={{ margin: 0 }}>{t('forensicLogTitle')}</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            All modifications to historical or locked logs are recorded below with mandatory justification.
-            This log ensures non-repudiation for regulatory roadside inspections.
+            {t('forensicLogBody')}
           </p>
         </div>
 
         {auditLog.length === 0 ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', opacity: 0.5 }}>
             <AlertCircle size={48} />
-            <p>No audit entries found for this week.</p>
+            <p>{t('noAuditEntriesWeek')}</p>
           </div>
         ) : (
           <div className="audit-table-container">
             <table className="audit-table">
               <thead>
                 <tr>
-                  <th>Timestamp</th>
-                  <th>Affected Record</th>
-                  <th>Original Value</th>
-                  <th>New Value</th>
-                  <th>Justification / Reason</th>
+                  <th>{t('timestamp')}</th>
+                  <th>{t('affectedRecord')}</th>
+                  <th>{t('originalValue')}</th>
+                  <th>{t('newValue')}</th>
+                  <th>{t('justificationSlashReason')}</th>
                 </tr>
               </thead>
               <tbody>

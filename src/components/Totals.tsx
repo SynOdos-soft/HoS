@@ -1,6 +1,7 @@
 import React from 'react';
 import { Status, DayVehicle, Preferences } from '../types';
 import { t } from '../utils/i18n';
+import { useT } from '../utils/i18n';
 import { AlertTriangle, Coffee, Bed, Briefcase, Route } from 'lucide-react';
 import { SteeringWheel } from './Icons';
 
@@ -54,6 +55,7 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
   const isUsa = homeTerminalAddress?.toUpperCase().includes('USA');
   const limitHours = isUsa ? 11 : 13;
   const isOverLimit = (drivingQuarters / 4) > limitHours;
+  const tr = useT();
 
   if (variant === 'compact') {
     return (
@@ -84,25 +86,25 @@ export const Totals: React.FC<TotalsProps> = ({ grid, preferences, startOdometer
   return (
     <div className="totals-grid no-print">
       <div className="total-card off-duty">
-        <h3>Off-Duty</h3>
+        <h3>{tr('offDuty')}</h3>
         <div className="value">{formatHours(counts['off-duty'] || 0)}</div>
       </div>
       {preferences.showSleeper && (
         <div className="total-card sleeper">
-          <h3>Sleeper</h3>
+          <h3>{tr('sleeper')}</h3>
           <div className="value">{formatHours(counts['sleeper'] || 0)}</div>
         </div>
       )}
       <div className={`total-card driving ${isOverLimit ? 'over-limit' : ''}`} style={isOverLimit ? { border: '2px solid var(--accent-red)', background: 'rgba(239, 68, 68, 0.1)' } : {}}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3>Driving</h3>
+          <h3>{tr('driving')}</h3>
           {isOverLimit && <AlertTriangle size={16} color="var(--accent-red)" />}
         </div>
         <div className="value" style={isOverLimit ? { color: 'var(--accent-red)' } : {}}>{formatHours(drivingQuarters)}</div>
-        {isOverLimit && <div style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 700, marginTop: '2px' }}>LIMIT: {formatLimit(limitHours)}</div>}
+        {isOverLimit && <div style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 700, marginTop: '2px' }}>{tr('overLimit').toUpperCase()}: {formatLimit(limitHours)}</div>}
       </div>
       <div className="total-card on-duty">
-        <h3>On-Duty</h3>
+        <h3>{tr('onDuty')}</h3>
         <div className="value">{formatHours(counts['on-duty'] || 0)}</div>
       </div>
       <div className="total-card distance">

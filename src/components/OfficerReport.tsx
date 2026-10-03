@@ -10,6 +10,7 @@ import {
   officerTotals,
   closeOfficerReport,
 } from '../utils/officerReport';
+import { useT, dateLocaleFor, getI18nLanguage } from '../utils/i18n';
 
 const STATUS_COLOR: Record<Status, string> = {
   'off-duty': 'var(--status-off-duty)',
@@ -56,27 +57,28 @@ const Total: React.FC<{ icon: React.ReactNode; label: string; value: string; col
 
 const DayCard: React.FC<{ day: OfficerDay; cycle: string; isToday: boolean }> = ({ day, cycle, isToday }) => {
   const totals = officerTotals(day.grid);
+  const t = useT();
 
   return (
     <article className={`officer-day${isToday ? ' officer-day-today' : ''}`}>
       <header className="officer-day-head">
-        <h3 className="officer-date">{format(parseISO(day.date), 'EEEE, yyyy/MM/dd')}</h3>
+        <h3 className="officer-date">{format(parseISO(day.date), 'EEEE, yyyy/MM/dd', { locale: dateLocaleFor(getI18nLanguage()) })}</h3>
         <div className="officer-day-tags">
-          {isToday && <span className="officer-pill officer-pill-today">TODAY</span>}
+          {isToday && <span className="officer-pill officer-pill-today">{t('todayPill')}</span>}
           <span className="officer-pill">{cycle === '14-Day' ? 'C2' : 'C1'}</span>
         </div>
       </header>
 
       {!day.recorded ? (
-        <p className="officer-empty">No log recorded for this day.</p>
+        <p className="officer-empty">{t('officerNoEntries')}</p>
       ) : (
         <>
           <div className="officer-totals">
-            <Total icon={<SteeringWheel size={15} />} label="Driving" value={formatQuarterHours(totals.driving)} color="var(--status-driving)" />
-            <Total icon={<Briefcase size={15} />} label="On-duty" value={formatQuarterHours(totals.onDuty)} color="var(--status-on-duty)" />
-            <Total icon={<Bed size={15} />} label="Sleeper" value={formatQuarterHours(totals.sleeper)} color="var(--status-sleeper)" />
-            <Total icon={<Coffee size={15} />} label="Off-duty" value={formatQuarterHours(totals.off)} color="var(--status-off-duty)" />
-            <Total icon={<Route size={15} />} label="Distance" value={`${day.distanceKm ? `${Math.round(day.distanceKm)} km` : '—'}`} color="var(--text-secondary)" />
+            <Total icon={<SteeringWheel size={15} />} label={t('totalsDriving')} value={formatQuarterHours(totals.driving)} color="var(--status-driving)" />
+            <Total icon={<Briefcase size={15} />} label={t('totalsOnDuty')} value={formatQuarterHours(totals.onDuty)} color="var(--status-on-duty)" />
+            <Total icon={<Bed size={15} />} label={t('totalsSleeper')} value={formatQuarterHours(totals.sleeper)} color="var(--status-sleeper)" />
+            <Total icon={<Coffee size={15} />} label={t('totalsOffDuty')} value={formatQuarterHours(totals.off)} color="var(--status-off-duty)" />
+            <Total icon={<Route size={15} />} label={t('distance')} value={`${day.distanceKm ? `${Math.round(day.distanceKm)} km` : '—'}`} color="var(--text-secondary)" />
           </div>
 
           <DayBar grid={day.grid} />
@@ -90,7 +92,7 @@ const DayCard: React.FC<{ day: OfficerDay; cycle: string; isToday: boolean }> = 
             )}
             {day.plate && <span>CMV {day.plate}</span>}
             {day.editedLater && (
-              <span className="officer-edited"><Pencil size={13} aria-hidden="true" /> Edited after the fact</span>
+              <span className="officer-edited"><Pencil size={13} aria-hidden="true" /> {t('editedAfterTheFact')}</span>
             )}
           </div>
 
@@ -108,6 +110,7 @@ const DayCard: React.FC<{ day: OfficerDay; cycle: string; isToday: boolean }> = 
  */
 export const OfficerReport: React.FC<{ report: OfficerReportData }> = ({ report }) => {
   const today = format(new Date(), 'yyyy-MM-dd');
+  const t = useT();
 
   const summary = useMemo(() => {
     let drivingQuarters = 0;
@@ -139,60 +142,57 @@ export const OfficerReport: React.FC<{ report: OfficerReportData }> = ({ report 
           <div className="officer-banner-title">
             <span className="officer-shield"><Shield size={24} aria-hidden="true" /></span>
             <div>
-              <h1>15-Day Driver Log</h1>
-              <p>Roadside inspection copy</p>
+              <h1>{t('fifteenDayDriverLog')}</h1>
+              <p>{t('officerModeBanner')}</p>
             </div>
           </div>
-          <span className="officer-readonly">READ ONLY</span>
+          <span className="officer-readonly">{t('officerReadOnly')}</span>
         </header>
 
-        <section className="officer-identity" aria-label="Driver and carrier">
+        <section className="officer-identity" aria-label={t('driverAndCarrier')}>
           <dl className="officer-facts">
-            {fact('Driver', report.driver || '—')}
-            {fact('Cycle', report.cycle === '14-Day' ? '14-Day / 120 h (C2)' : '7-Day / 70 h (C1)')}
-            {fact('CMV plate', report.plate || '—')}
-            {fact('Trailer', report.trailer)}
-            {fact('Operator', report.operator, true)}
-            {fact('Main office', report.operatorAddress, true)}
-            {fact('Home terminal', report.homeTerminal, true)}
-            {fact('Co-driver', report.coDriver)}
+            {fact(t('factDriver'), report.driver || '—')}
+            {fact(t('factCycle'), report.cycle === '14-Day' ? `${t('cycle14Day')} / 120 h (C2)` : `${t('cycle7Day')} / 70 h (C1)`)}
+            {fact(t('factPlate'), report.plate || '—')}
+            {fact(t('factTrailer'), report.trailer)}
+            {fact(t('factOperator'), report.operator, true)}
+            {fact(t('factMainOffice'), report.operatorAddress, true)}
+            {fact(t('factHomeTerminal'), report.homeTerminal, true)}
+            {fact(t('factCoDriver'), report.coDriver)}
             {fact(
-              'Generated',
+              t('factGenerated'),
               report.generatedAt ? format(new Date(report.generatedAt), 'yyyy/MM/dd HH:mm') : ''
             )}
           </dl>
         </section>
 
-        <section className="officer-summary" aria-label="15-day summary">
+        <section className="officer-summary" aria-label={t('summary15Day')}>
           <div>
             <strong>{formatQuarterHours(summary.drivingQuarters)}</strong>
-            <span>Driving</span>
+            <span>{t('totalsDriving')}</span>
           </div>
           <div>
             <strong>{summary.distanceKm ? `${Math.round(summary.distanceKm)} km` : '—'}</strong>
-            <span>Distance</span>
+            <span>{t('distance')}</span>
           </div>
           <div>
             <strong>{summary.recorded} / {report.days.length}</strong>
-            <span>Days logged</span>
+            <span>{t('daysLogged')}</span>
           </div>
         </section>
 
-        <section className="officer-days" aria-label="Daily records">
+        <section className="officer-days" aria-label={t('dailyRecords')}>
           {newestFirst.map(day => (
             <DayCard key={day.date} day={day} cycle={report.cycle} isToday={day.date === today} />
           ))}
         </section>
 
         <footer className="officer-footer">
-          <FileText size={16} aria-hidden="true" />
-          <span>
-            Read-only copy — no records can be changed from this screen. Generated by Synodos Log v{APP_VERSION}.
-          </span>
+          <FileText size={16} aria-hidden="true" /><span>{t('officerFooterNote')} v{APP_VERSION}</span>
         </footer>
 
         <button className="officer-exit" type="button" onClick={closeOfficerReport}>
-          Close report
+          {t('officerCloseReport')}
         </button>
       </div>
     </div>
@@ -200,31 +200,34 @@ export const OfficerReport: React.FC<{ report: OfficerReportData }> = ({ report 
 };
 
 /** Shown when the scanned link is damaged or truncated. */
-export const OfficerLinkError: React.FC<{ error: string }> = ({ error }) => (
+export const OfficerLinkError: React.FC<{ error: string }> = ({ error }) => {
+  const et = useT();
+  return (
   <div className="officer-root">
     <div className="officer-shell">
       <header className="officer-banner">
         <div className="officer-banner-title">
           <span className="officer-shield"><Shield size={24} aria-hidden="true" /></span>
           <div>
-            <h1>15-Day Driver Log</h1>
-            <p>Roadside inspection copy</p>
+            <h1>{et('fifteenDayDriverLog')}</h1>
+            <p>{et('officerModeBanner')}</p>
           </div>
         </div>
-        <span className="officer-readonly">READ ONLY</span>
+        <span className="officer-readonly">{et('officerReadOnly')}</span>
       </header>
       <section className="officer-day officer-day-today">
-        <h2 style={{ margin: '0 0 0.5rem' }}>This inspection link could not be opened</h2>
+        <h2 style={{ margin: '0 0 0.5rem' }}>{et('invalidHandoffLink')}</h2>
         <p style={{ margin: 0, fontSize: '1.05rem' }}>{error}</p>
         <p style={{ margin: '0.75rem 0 0', color: 'var(--text-secondary)' }}>
-          Ask the driver to generate a fresh QR code or link from the Inspection screen.
+          {et('invalidHandoffBody')}
         </p>
         <div style={{ marginTop: '1rem' }}>
           <button className="btn-primary" type="button" onClick={closeOfficerReport}>
-            Back to the app
+            {et('backToApp')}
           </button>
         </div>
       </section>
     </div>
   </div>
-);
+  );
+};

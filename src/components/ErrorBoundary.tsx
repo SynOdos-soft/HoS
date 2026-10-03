@@ -1,5 +1,6 @@
 import React from 'react';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { t, getI18nLanguage } from '../utils/i18n';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -36,6 +37,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     // PII-free: message + stack only, never user data.
     console.error('[error-boundary] render crash', error, info.componentStack);
   }
+
+  // Class component: no hook, so read the language straight from the store.
+  // The crash screen is rendered once, so it does not need to be reactive.
+  private tr = (key: Parameters<typeof t>[0]): string => t(key, getI18nLanguage());
 
   private handleRetry = () => {
     this.setState({ error: null });
@@ -74,10 +79,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         >
           <AlertTriangle size={40} color="var(--accent-orange)" style={{ alignSelf: 'center' }} />
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.2rem' }}>Something went wrong</h1>
+            <h1 style={{ margin: 0, fontSize: '1.2rem' }}>{this.tr('somethingWentWrong')}</h1>
             <p style={{ margin: '0.5rem 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              The app hit an unexpected error, but your log book is safe on this
-              device. Try again, or reload for a fresh start.
+              {this.tr('errorBoundaryBody')}
             </p>
           </div>
 
@@ -88,14 +92,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.25rem' }}
             >
               <RefreshCw size={15} />
-              Try again
+              {this.tr('tryAgain')}
             </button>
             <button
               className="btn-secondary"
               onClick={this.handleReload}
               style={{ padding: '0.55rem 1.25rem' }}
             >
-              Reload app
+              {this.tr('reloadApp')}
             </button>
         </div>
         </div>

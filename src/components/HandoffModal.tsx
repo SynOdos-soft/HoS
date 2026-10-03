@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Preferences, WeeklyLog } from '../types';
 import { buildOfficerReport, buildOfficerUrl } from '../utils/officerReport';
 import { QrCodeSvg } from './QrCodeSvg';
+import { useT } from '../utils/i18n';
 
 interface HandoffModalProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ const fallbackCopy = (text: string): boolean => {
  */
 export const HandoffModal: React.FC<HandoffModalProps> = ({ isOpen, onClose, logs, preferences, onRoadsidePDF }) => {
   const [copied, setCopied] = useState(false);
+  const t = useT();
   const dialogRef = useRef<HTMLDivElement>(null);
   const copyTimer = useRef<number | undefined>(undefined);
 
@@ -113,11 +115,8 @@ export const HandoffModal: React.FC<HandoffModalProps> = ({ isOpen, onClose, log
           <QrCode size={26} />
         </div>
         <div className="ui-modal-heading">
-          <h2 id="handoff-title">Inspection handoff</h2>
-          <p>
-            Print the roadside PDF, or let the officer scan the code for a read-only copy of the last 15 days on
-            their own phone.
-          </p>
+          <h2 id="handoff-title">{t('handoffTitle')}</h2>
+          <p>{t('handoffBody')}</p>
         </div>
 
         <div className="handoff-qr-wrap">
@@ -126,7 +125,7 @@ export const HandoffModal: React.FC<HandoffModalProps> = ({ isOpen, onClose, log
               <div className="handoff-qr-frame">
                 <QrCodeSvg value={link.url} size={232} />
               </div>
-              <p className="handoff-qr-caption">Scan to open the 15-day report — large type, no editing.</p>
+              <p className="handoff-qr-caption">{t('scanToOpen')}</p>
               {/* Full text in the DOM, ellipsised with CSS: a copied selection
                   can never be a truncated (and therefore broken) token. */}
               <code className="handoff-url" title={link.url}>{link.url}</code>
@@ -149,15 +148,15 @@ export const HandoffModal: React.FC<HandoffModalProps> = ({ isOpen, onClose, log
         )}
 
         <div className="ui-modal-actions">
-          <Button variant="ghost" onClick={onClose}>Close</Button>
+          <Button variant="ghost" onClick={onClose}>{t('closeHandoff')}</Button>
           {canShare && link.url && (
             <Button variant="outline" onClick={handleShare}>
-              <Share2 size={16} /> Share
+              <Share2 size={16} /> {t('share')}
             </Button>
           )}
           <Button variant="outline" onClick={handleCopy} disabled={!link.url}>
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? 'Link copied' : 'Copy link'}
+            {copied ? t('linkCopied') : t('copyLink')}
           </Button>
           <Button
             onClick={() => {
@@ -165,10 +164,10 @@ export const HandoffModal: React.FC<HandoffModalProps> = ({ isOpen, onClose, log
               onClose();
             }}
           >
-            <Download size={16} /> Roadside PDF
+            <Download size={16} /> {t('roadsidePdf')}
           </Button>
         </div>
-        <button className="handoff-dismiss" type="button" onClick={onClose} aria-label="Close handoff dialog">
+        <button className="handoff-dismiss" type="button" onClick={onClose} aria-label={t('closeHandoff')}>
           <X size={16} />
         </button>
       </div>

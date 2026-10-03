@@ -2,6 +2,7 @@ import React from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { APP_VERSION } from '../types';
+import { useT } from '../utils/i18n';
 
 /**
  * PWA update banner for the signed-out auth screens (SignIn, Paywall).
@@ -14,6 +15,7 @@ import { APP_VERSION } from '../types';
  * can be unsaved on these screens), with the button as the manual fallback.
  */
 export const AuthUpdateBanner: React.FC = () => {
+  const t = useT();
   const swRegistrationRef = React.useRef<ServiceWorkerRegistration | null>(null);
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
     onRegisteredSW(_url, registration) {
@@ -79,21 +81,21 @@ export const AuthUpdateBanner: React.FC = () => {
     >
       <RefreshCw size={16} style={{ flexShrink: 0 }} />
       <span style={{ flex: 1 }}>
-        {isUpdating ? 'Updating…'
+        {isUpdating ? t('updatingEllipsis')
           : newVersion && newVersion !== APP_VERSION
-            ? `Update to v${newVersion} available`
-            : 'A new version is available'}
+            ? t('updateToAvailable').replace('{version}', newVersion)
+            : t('newVersionAvailable')}
       </span>
       <button
         className="btn-primary btn-compact"
         onClick={() => { setIsUpdating(true); updateServiceWorker(true); }}
         disabled={isUpdating}
       >
-        {isUpdating ? 'Updating…' : 'Update now'}
+        {isUpdating ? t('updatingEllipsis') : t('updateNow')}
       </button>
       <button
         className="close-btn"
-        aria-label="Dismiss"
+        aria-label={t('dismiss')}
         onClick={() => setDismissed(true)}
         style={{ flexShrink: 0 }}
       >

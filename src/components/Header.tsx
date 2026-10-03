@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings, LogOut, Save, Download, Menu, X, Shield, LayoutDashboard, FileText, User, Clock, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { useSyncStatus } from '../lib/useSyncStatus';
+import { useT } from '../utils/i18n';
 
 interface HeaderProps {
   view: 'dashboard' | 'editor' | 'audit' | 'profile' | 'preferences';
@@ -20,6 +21,7 @@ interface HeaderProps {
 /** Second line of the account card: offline window + cloud state (if any). */
 const AccountSubline: React.FC<{ daysRemaining?: number | null }> = ({ daysRemaining }) => {
   const { state: syncState, online, driveConnected } = useSyncStatus();
+  const t = useT();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.72rem', opacity: 0.75, width: '100%', flexWrap: 'wrap' }}>
       {typeof daysRemaining === 'number' && (
@@ -29,10 +31,10 @@ const AccountSubline: React.FC<{ daysRemaining?: number | null }> = ({ daysRemai
             color: daysRemaining <= 2 ? 'var(--accent-orange)' : undefined,
             fontWeight: daysRemaining <= 2 ? 600 : undefined,
           }}
-          title="Days you can keep logging without reconnecting to the internet"
+          title={t('daysRemainingOffline')}
         >
           <Clock size={12} />
-          {daysRemaining <= 0 ? 'Reconnect required' : daysRemaining === 1 ? '1 day offline left' : `${daysRemaining} days offline left`}
+          {daysRemaining <= 0 ? t('reconnectRequired') : daysRemaining === 1 ? t('oneDayOfflineLeft') : `${daysRemaining} ${t('daysOfflineLeft')}`}
         </span>
       )}
       {driveConnected && (
@@ -41,10 +43,10 @@ const AccountSubline: React.FC<{ daysRemaining?: number | null }> = ({ daysRemai
             display: 'inline-flex', alignItems: 'center', gap: 4,
             color: !online ? 'var(--text-secondary)' : syncState === 'error' ? 'var(--accent-red)' : syncState === 'syncing' ? 'var(--accent-blue)' : 'var(--accent-green)',
           }}
-          title={`Cloud sync: ${!online ? 'offline — edits will sync later' : syncState}`}
+          title={`${t('cloudSyncStatus')}: ${!online ? t('offlineEditsLater') : syncState}`}
         >
           {!online ? <CloudOff size={12} /> : syncState === 'syncing' ? <RefreshCw size={12} className="spin" /> : syncState === 'error' ? <AlertCircle size={12} /> : <Cloud size={12} />}
-          {!online ? 'Offline' : syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Sync error' : 'Synced'}
+          {!online ? t('offline') : syncState === 'syncing' ? t('syncing') : syncState === 'error' ? t('syncError') : t('synced')}
         </span>
       )}
     </span>
@@ -55,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   view, onNavigate, onSave, onExportPDF, isSaving, onSavePreset, onApplyPreset, onRoadsidePDF, accountEmail, onSignOut, daysRemaining
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const t = useT();
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
@@ -93,11 +96,11 @@ export const Header: React.FC<HeaderProps> = ({
 
   const getTitle = () => {
     switch (view) {
-      case 'dashboard': return 'Dashboard';
-      case 'editor': return 'Daily Logger';
-      case 'audit': return 'Inspection';
-      case 'profile': return 'User Preferences';
-      case 'preferences': return 'System Settings';
+      case 'dashboard': return t('navDashboard');
+      case 'editor': return t('dailyLogger');
+      case 'audit': return t('navInspection');
+      case 'profile': return t('userPreferences');
+      case 'preferences': return t('systemSettings');
       default: return 'SynOdos HOS';
     }
   };
@@ -122,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({
             ref={toggleRef}
             className="hamburger-btn" 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-label={isMenuOpen ? t('closeMenu') : t('openMenu')}
             aria-expanded={isMenuOpen}
             aria-controls="global-side-menu"
           >
@@ -141,40 +144,40 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="menu-body">
             <div className="menu-section">
-              <label>Navigation</label>
+              <label>{t('nav')}</label>
               <button className={`menu-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('dashboard'))}>
-                <LayoutDashboard size={20} /> Dashboard
+                <LayoutDashboard size={20} /> {t('navDashboard')}
               </button>
               <button className={`menu-item ${view === 'editor' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('editor'))}>
-                <FileText size={20} /> Daily Logger
+                <FileText size={20} /> {t('dailyLogger')}
               </button>
               <button className={`menu-item ${view === 'audit' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('audit'))}>
-                <Shield size={20} /> Inspection
+                <Shield size={20} /> {t('navInspection')}
               </button>
             </div>
 
             {view !== 'dashboard' && (
               <div className="menu-section">
-                <label>Actions</label>
+                <label>{t('actions')}</label>
                 {view === 'editor' && (
                   <>
                     <button className="menu-item" onClick={() => handleAction(onSave)}>
-                      <Save size={20} /> {isSaving ? 'Saving...' : 'Save Progress'}
+                      <Save size={20} /> {isSaving ? t('saving') : t('saveProgress')}
                     </button>
                     <button className="menu-item" onClick={() => handleAction(onExportPDF)}>
-                      <Download size={20} /> Export Log (PDF)
+                      <Download size={20} /> {t('exportLogPdf')}
                     </button>
                     <button className="menu-item" onClick={() => handleAction(onSavePreset)}>
-                      <Save size={20} /> Save Preset
+                      <Save size={20} /> {t('savePreset')}
                     </button>
                     <button className="menu-item" onClick={() => handleAction(onApplyPreset)}>
-                      <Download size={20} /> Apply Preset
+                      <Download size={20} /> {t('applyPreset')}
                     </button>
                   </>
                 )}
                 {view === 'audit' && (
                   <button className="menu-item" onClick={() => handleAction(onRoadsidePDF)}>
-                    <Shield size={20} /> Generate Roadside PDF
+                    <Shield size={20} /> {t('generateRoadsidePdf')}
                   </button>
                 )}
               </div>
@@ -182,24 +185,24 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div className="menu-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="menu-section" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
-                <label>Account & Config</label>
+                <label>{t('accountAndConfig')}</label>
                 {/* Everything account-related in one tappable summary card. */}
                 <button
                   className={`menu-item ${view === 'profile' ? 'active' : ''}`}
                   onClick={() => handleAction(() => onNavigate('profile'))}
-                  title="Open account hub"
+                  title={t('openAccountHub')}
                   style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem' }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%' }}>
                     <User size={20} style={{ flexShrink: 0 }} />
                     <span style={{ fontWeight: 600, wordBreak: 'break-all', textAlign: 'left' }}>
-                      {accountEmail || 'My Account'}
+                      {accountEmail || t('myAccount')}
                     </span>
                   </span>
                   <AccountSubline daysRemaining={daysRemaining} />
                 </button>
                 <button className={`menu-item ${view === 'preferences' ? 'active' : ''}`} onClick={() => handleAction(() => onNavigate('preferences'))}>
-                  <Settings size={20} /> System Settings
+                  <Settings size={20} /> {t('systemSettings')}
                 </button>
               </div>
               <button
@@ -209,7 +212,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsMenuOpen(false);
                 }}
               >
-                <LogOut size={20} /> Sign Out
+                <LogOut size={20} /> {t('signOut')}
               </button>
             </div>
           </div>

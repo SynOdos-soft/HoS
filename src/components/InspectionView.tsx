@@ -5,6 +5,7 @@ import { format, subDays, parseISO } from 'date-fns';
 import { LogGrid } from './LogGrid';
 import { SteeringWheel } from './Icons';
 import { HandoffModal } from './HandoffModal';
+import { useT, dateLocaleFor } from '../utils/i18n';
 
 interface InspectionViewProps {
   logs: WeeklyLog[];
@@ -18,6 +19,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [showHandoff, setShowHandoff] = useState(false);
+  const t = useT();
 
   const today = new Date();
   const last15Days = Array.from({ length: 15 }).map((_, i) => subDays(today, i));
@@ -73,11 +75,11 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
       {/* Handoff bar: roadside PDF + on-screen QR for the officer's phone */}
       <div className="inspection-toolbar no-print">
         <div className="inspection-toolbar-copy">
-          <h2>15-Day Record</h2>
-          <p>Read-only compliance review of the last 15 days.</p>
+          <h2>{t('fifteenDayRecord')}</h2>
+          <p>{t('handoffBody')}</p>
         </div>
         <button className="btn-primary" onClick={() => setShowHandoff(true)}>
-          <QrCode size={16} /> Handoff
+          <QrCode size={16} /> {t('handoff')}
         </button>
       </div>
 
@@ -139,7 +141,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                       </span>
                     )}
                     <div className="date-badge">
-                      <span>{format(date, 'EEEE, MMM d')}</span>
+                      <span>{format(date, 'EEEE, MMM d', { locale: dateLocaleFor(preferences.language) })}</span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
@@ -262,7 +264,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                       <div className="card-metadata-box" style={{ marginTop: '0.75rem' }}>
                         {day.remarks && (
                           <div className="metadata-row">
-                            <div className="metadata-tag">REMARKS</div>
+                            <div className="metadata-tag">{t('tagRemarks')}</div>
                             <div className="metadata-value italic">
                               <span>{day.remarks}</span>
                             </div>
@@ -270,7 +272,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                         )}
                         {(day.startOdometer || day.endOdometer) && (
                           <div className="metadata-row">
-                            <div className="metadata-tag">ODOMETER</div>
+                            <div className="metadata-tag">{t('tagOdometer')}</div>
                             <div className="metadata-value">
                               <span>{day.startOdometer || '--'} → {day.endOdometer || '--'}</span>
                             </div>
@@ -281,33 +283,33 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                             {!is24hOffDuty && (
                               <>
                                 <div className="metadata-row">
-                                  <div className="metadata-tag">CMV PLATE</div>
+                                  <div className="metadata-tag">{t('tagCmvPlate')}</div>
                                   <div className="metadata-value"><span>{day.cmvPlate || metadata.cmvPlate || '--'}</span></div>
                                 </div>
                                 {preferences.showTrailerPlate && metadata.trailerPlate && (
                                   <div className="metadata-row">
-                                    <div className="metadata-tag">TRAILER</div>
+                                    <div className="metadata-tag">{t('tagTrailer')}</div>
                                     <div className="metadata-value"><span>{metadata.trailerPlate}</span></div>
                                   </div>
                                 )}
                                  {preferences.showCoDrivers && metadata.coDrivers && (
                                   <div className="metadata-row">
-                                    <div className="metadata-tag">CO-DRIVER</div>
+                                    <div className="metadata-tag">{t('tagCoDriver')}</div>
                                     <div className="metadata-value"><span>{metadata.coDrivers}</span></div>
                                   </div>
                                 )}
                               </>
                             )}
                             <div className="metadata-row">
-                              <div className="metadata-tag">HOME TERMINAL</div>
+                              <div className="metadata-tag">{t('tagHomeTerminal')}</div>
                               <div className="metadata-value"><span>{metadata.homeTerminalAddress || '--'}</span></div>
                             </div>
                             <div className="metadata-row">
-                              <div className="metadata-tag">OPERATOR</div>
+                              <div className="metadata-tag">{t('tagOperator')}</div>
                               <div className="metadata-value"><span>{metadata.operatorName || '--'}</span></div>
                             </div>
                             <div className="metadata-row">
-                              <div className="metadata-tag">MAIN OFFICE</div>
+                              <div className="metadata-tag">{t('tagMainOffice')}</div>
                               <div className="metadata-value"><span>{metadata.operatorBusinessAddress || '--'}</span></div>
                             </div>
                           </>
@@ -318,7 +320,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
                 )
               ) : (
                 <div className="card-empty">
-                  <p>No log data</p>
+                  <p>{t('noLogData')}</p>
                 </div>
               )}
             </div>
@@ -331,14 +333,14 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
           <FileText size={22} color="var(--accent-orange)" />
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Audit Trail</h2>
+            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{t('auditTrailLabel')}</h2>
           </div>
         </div>
 
         {allAuditEntries.length === 0 ? (
           <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
             <FileText size={40} style={{ marginBottom: '0.75rem', color: 'var(--text-secondary)' }} />
-            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>No audit entries found. All records are original.</p>
+            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{t('noAuditEntriesAll')}</p>
           </div>
         ) : (
           <div className="glass-panel" style={{ padding: 0 }}>
@@ -350,11 +352,11 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--glass-border)' }}>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>Timestamp</th>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>Log Date</th>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>Field</th>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '250px', color: 'var(--text-secondary)', fontWeight: 600 }}>Change</th>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '200px', color: 'var(--text-secondary)', fontWeight: 600 }}>Justification</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('timestamp')}</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('logDate')}</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '100px', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('field')}</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '250px', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('change')}</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '200px', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('justification')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -400,16 +402,16 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
           style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', fontSize: '0.8rem', padding: '0.5rem 1rem' }}
           onClick={() => setShowDebug(!showDebug)}
         >
-          {showDebug ? 'Hide Diagnostics' : 'Show Roadside Diagnostics'}
+          {showDebug ? t('hideDiagnostics') : t('showRoadsideDiagnostics')}
         </button>
 
         {showDebug && (
           <div className="glass-panel" style={{ marginTop: '1rem', padding: '1.5rem', fontSize: '0.85rem', lineHeight: '1.6' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: 'var(--accent-blue)' }}>System Diagnostics</h3>
+            <h3 style={{ margin: '0 0 1rem 0', color: 'var(--accent-blue)' }}>{t('systemDiagnostics')}</h3>
             
             <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
               <div>
-                <strong style={{ color: 'var(--text-secondary)' }}>Loaded Logs in State:</strong> {logs.length}
+                <strong style={{ color: 'var(--text-secondary)' }}>{t('loadedLogsInState')}</strong> {logs.length}
                 <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0 }}>
                   {logs.map(l => (
                     <li key={l.id}>
@@ -420,7 +422,7 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
               </div>
 
               <div>
-                <strong style={{ color: 'var(--text-secondary)' }}>All Available Dates in Database Map ({dayMap.size}):</strong>
+                <strong style={{ color: 'var(--text-secondary)' }}>{t('allDatesInDatabaseMap')} ({dayMap.size}) :</strong>
                 <div style={{ maxHeight: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '4px', marginTop: '0.5rem' }}>
                   {Array.from(dayMap.keys()).sort().map(d => (
                     <div key={d}>• {d}</div>
@@ -429,22 +431,21 @@ export const InspectionView: React.FC<InspectionViewProps> = ({ logs, preference
               </div>
 
               <div>
-                <strong style={{ color: 'var(--text-secondary)' }}>Date Query Range (last15Days):</strong>
+                <strong style={{ color: 'var(--text-secondary)' }}>{t('dateQueryRange')}</strong>
                 <div style={{ maxHeight: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '4px', marginTop: '0.5rem' }}>
-                  {last15Days.map(d => format(d, 'yyyy-MM-dd')).map(d => (
-                    <div key={d}>• {d} {dayMap.has(d) ? '✅ MATCHED' : '❌ NO MATCH'}</div>
+                  {last15Days.map(d => format(d, 'yyyy-MM-dd')).map(d => (                      <div key={d}>• {d} {dayMap.has(d) ? `✅ ${t('dateMatched')}` : `❌ ${t('dateNoMatch')}`}</div>
                   ))}
                 </div>
               </div>
 
               <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
-                <strong style={{ color: 'var(--accent-orange)' }}>May 15, 2026 Target Inspection Day Analysis:</strong>
+                <strong style={{ color: 'var(--accent-orange)' }}>{t('targetInspectionDayAnalysis')}</strong>
                 {dayMap.has('2026-05-15') ? (
                   <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '6px', overflowX: 'auto', fontSize: '0.75rem', marginTop: '0.5rem' }}>
                     {JSON.stringify(dayMap.get('2026-05-15'), null, 2)}
                   </pre>
                 ) : (
-                  <div style={{ color: 'var(--accent-red)', marginTop: '0.5rem' }}>❌ May 15, 2026 was not found in the inspection list map!</div>
+                  <div style={{ color: 'var(--accent-red)', marginTop: '0.5rem' }}>❌ {t('targetDayNotFound')}</div>
                 )}
               </div>
             </div>

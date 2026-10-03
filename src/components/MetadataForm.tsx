@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { WeeklyMetadata, Preferences, OperatorCompany } from '../types';
 import { Field, FieldLabel, Input, Select } from './ui/form-controls';
 import { Surface } from './ui/surface';
+import { useT } from '../utils/i18n';
 
 interface MetadataFormProps {
   metadata: WeeklyMetadata;
@@ -12,6 +13,7 @@ interface MetadataFormProps {
 
 export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadata, preferences }) => {
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const t = useT();
   const [operatorAutocompleteOpen, setOperatorAutocompleteOpen] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -62,18 +64,18 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadat
     <Surface className="no-print metadata-surface">
       <button className="ui-collapsible-trigger" type="button" onClick={() => setIsCollapsed(!isCollapsed)} aria-expanded={!isCollapsed}>
         <span>
-          <span className="ui-eyebrow">Weekly record</span>
-          <strong>Log details</strong>
+          <span className="ui-eyebrow">{t('weeklyRecord')}</span>
+          <strong>{t('logDetails')}</strong>
         </span>
         {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
       </button>
       {!isCollapsed && (
         <div className="ui-collapsible-content">
           <div className="metadata-grid">
-            <Field><FieldLabel htmlFor="cycle">Cycle</FieldLabel><Select id="cycle" name="cycle" value={metadata.cycle} onChange={handleChange}><option value="7-Day">7-Day</option><option value="14-Day">14-Day</option></Select></Field>
-            {preferences.showCoDrivers && <Field><FieldLabel htmlFor="coDrivers">Co-driver(s)</FieldLabel><Input id="coDrivers" name="coDrivers" value={metadata.coDrivers} onChange={handleChange} placeholder="Jane Smith" /></Field>}
+            <Field><FieldLabel htmlFor="cycle">{t('cycle')}</FieldLabel><Select id="cycle" name="cycle" value={metadata.cycle} onChange={handleChange}><option value="7-Day">{t('cycle7Day')}</option><option value="14-Day">{t('cycle14Day')}</option></Select></Field>
+            {preferences.showCoDrivers && <Field><FieldLabel htmlFor="coDrivers">{t('coDrivers')}</FieldLabel><Input id="coDrivers" name="coDrivers" value={metadata.coDrivers} onChange={handleChange} placeholder="Jane Smith" /></Field>}
             <Field style={{ position: 'relative' }}>
-              <FieldLabel htmlFor="operatorName">Operator name</FieldLabel>
+              <FieldLabel htmlFor="operatorName">{t('operatorName')}</FieldLabel>
               <Input
                 id="operatorName"
                 name="operatorName"
@@ -82,7 +84,7 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadat
                 onFocus={openOperatorAutocomplete}
                 onBlur={scheduleCloseOperatorAutocomplete}
                 autoComplete="off"
-                placeholder="Search saved companies"
+                placeholder={t('searchCompanies')}
               />
               {operatorAutocompleteOpen && filteredCompanies.length > 0 && (
                 <div className="autocomplete-dropdown" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--glass-bg)', backdropFilter: 'blur(16px)', border: '1px solid var(--glass-border)', borderRadius: '8px', marginTop: '4px', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)', zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
@@ -95,18 +97,18 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ metadata, setMetadat
                     >
                       <div style={{ fontWeight: 600 }}>{c.name}</div>
                       {c.homeTerminalAddress && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Home terminal: {c.homeTerminalAddress}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{t('labelHomeTerminal')} {c.homeTerminalAddress}</div>
                       )}
                     </div>
                   ))}
                 </div>
               )}
             </Field>
-            <Field><FieldLabel htmlFor="operatorBusinessAddress">Business address</FieldLabel><Input id="operatorBusinessAddress" name="operatorBusinessAddress" value={metadata.operatorBusinessAddress} onChange={handleChange} /></Field>
-            <Field><FieldLabel htmlFor="homeTerminalAddress">Home terminal</FieldLabel><Input id="homeTerminalAddress" name="homeTerminalAddress" value={metadata.homeTerminalAddress} onChange={handleChange} /></Field>
-            {preferences.showTrailerPlate && <Field><FieldLabel htmlFor="trailerPlate">Trailer plate</FieldLabel><Input id="trailerPlate" name="trailerPlate" value={metadata.trailerPlate} onChange={handleChange} /></Field>}
-            {preferences.showExempt && <Field><FieldLabel htmlFor="exemptHrs14Day">Exempt hours (14-day)</FieldLabel><Input id="exemptHrs14Day" name="exemptHrs14Day" value={metadata.exemptHrs14Day} onChange={handleChange} /></Field>}
-            <Field><FieldLabel htmlFor="signature">Signature / print name</FieldLabel><Input id="signature" name="signature" value={metadata.signature} onChange={handleChange} placeholder="Sign here" /></Field>
+            <Field><FieldLabel htmlFor="operatorBusinessAddress">{t('businessAddress')}</FieldLabel><Input id="operatorBusinessAddress" name="operatorBusinessAddress" value={metadata.operatorBusinessAddress} onChange={handleChange} /></Field>
+            <Field><FieldLabel htmlFor="homeTerminalAddress">{t('homeTerminal')}</FieldLabel><Input id="homeTerminalAddress" name="homeTerminalAddress" value={metadata.homeTerminalAddress} onChange={handleChange} /></Field>
+            {preferences.showTrailerPlate && <Field><FieldLabel htmlFor="trailerPlate">{t('trailerPlate')}</FieldLabel><Input id="trailerPlate" name="trailerPlate" value={metadata.trailerPlate} onChange={handleChange} /></Field>}
+            {preferences.showExempt && <Field><FieldLabel htmlFor="exemptHrs14Day">{t('exemptHours14Day')}</FieldLabel><Input id="exemptHrs14Day" name="exemptHrs14Day" value={metadata.exemptHrs14Day} onChange={handleChange} /></Field>}
+            <Field><FieldLabel htmlFor="signature">{t('signature')}</FieldLabel><Input id="signature" name="signature" value={metadata.signature} onChange={handleChange} placeholder="Sign here" /></Field>
           </div>
         </div>
       )}

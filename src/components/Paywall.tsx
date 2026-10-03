@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CreditCard, RefreshCw, Loader2, ShieldCheck, Cloud, Check } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { AuthUpdateBanner } from './AuthUpdateBanner';
+import { useT } from '../utils/i18n';
 
 /**
  * Shown when the session-renewal entitlement check denies extension: the
@@ -13,6 +14,7 @@ import { AuthUpdateBanner } from './AuthUpdateBanner';
  */
 export const Paywall: React.FC = () => {
   const { user, subscription, validateSession, signOut } = useAuth();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,12 +47,10 @@ export const Paywall: React.FC = () => {
 
         <div>
           <h1 style={{ margin: 0, fontSize: '1.2rem' }}>
-            {expired ? 'Subscription ended' : 'Subscription required'}
+            {expired ? t('subscriptionEnded') : t('subscriptionRequired')}
           </h1>
           <p style={{ margin: '0.5rem 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            {expired
-              ? 'Your plan has expired, so offline access can no longer be extended. Everything you logged is saved on this device.'
-              : 'Choose a plan to keep logging after the offline window closes. Everything you logged so far is saved on this device.'}
+            {expired ? t('planExpiredBody') : t('planRequiredBody')}
           </p>
         </div>
 
@@ -60,24 +60,20 @@ export const Paywall: React.FC = () => {
           background: 'var(--bg-secondary, rgba(255,255,255,0.05))', color: 'var(--text-secondary)',
         }}>
           <ShieldCheck size={15} style={{ flexShrink: 0 }} />
-          <span>{user?.email} · plan: {subscription.plan}</span>
+          <span>{user?.email} · {t('planLabel')}: {subscription.plan}</span>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', textAlign: 'left' }}>
-          {[
-            'Unlimited weekly logs with full audit trail',
-            'Automatic cloud backup & multi-device sync',
-            'Roadside inspection & PDF exports',
-          ].map(f => (
+          {(['planFeatureLogs', 'planFeatureBackup', 'planFeatureInspection'] as const).map(f => (
             <span key={f} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-              <Check size={15} color="var(--accent-green)" style={{ flexShrink: 0 }} /> {f}
+              <Check size={15} color="var(--accent-green)" style={{ flexShrink: 0 }} /> {t(f)}
             </span>
           ))}
         </div>
 
         <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', gap: '0.6rem', padding: '0.8rem' }}
           onClick={() => {/* TODO: redirect to billing/checkout */}}>
-          <Cloud size={18} /> Choose plan
+          <Cloud size={18} /> {t('choosePlanCta')}
         </button>
 
         {error && (
@@ -91,11 +87,11 @@ export const Paywall: React.FC = () => {
           <button className="btn-secondary" onClick={retry} disabled={busy}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', fontSize: '0.85rem' }}>
             {busy ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />}
-            I've subscribed — retry
+            {t('subscribedRetry')}
           </button>
           <button onClick={() => signOut()}
             style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.85rem' }}>
-            Sign out
+            {t('signOut')}
           </button>
         </div>
       </div>
